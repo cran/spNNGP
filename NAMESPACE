@@ -1,0 +1,10 @@
+useDynLib(spNNGP, .registration=TRUE)
+
+export(spNNGP)
+export(spConjNNGP)
+export(spPredict)
+
+import(Formula, coda, RANN)
+importFrom("stats", "coefficients", "lm", "contrasts", "is.empty.model", "model.matrix", "model.response", "terms", "dnorm", "pnorm")
+importFrom("utils", "setTxtProgressBar", "txtProgressBar")
+importFrom("RANN", "nn2")

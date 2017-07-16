@@ -1,0 +1,20 @@
+Package: spNNGP
+Title: Spatial Regression Models using Nearest Neighbor Gaussian
+        Processes
+Version: 0.1.0
+Date: 2017-07-14
+Authors@R: c(person("Andrew", "Finley", role=c("aut", "cre"), email="finleya@msu.edu"), person("Abhirup", "Datta", role="aut", email="abhidatta@jhu.edu"), person("Sudipto", "Banerjee", role="aut", email="sudipto@ucla.edu"), person("Alexander", "Mckim", role="ctb", email="amckim@g.clemson.edu"))
+Maintainer: Andrew Finley <finleya@msu.edu>
+Author: Andrew Finley [aut, cre],
+ Abhirup Datta [aut],
+ Sudipto Banerjee [aut],
+ Alexander Mckim [ctb]
+Depends: R (>= 2.10), coda, Formula, RANN
+Description: Fits Gaussian univariate Bayesian spatial regression models using Nearest Neighbor Gaussian Processes (NNGP) detailed in Datta, A., S. Banerjee, A.O. Finley, and A.E. Gelfand (2016) <doi:10.1080/01621459.2015.1044091> and Finley, A.O., A. Datta, B.C. Cook, D.C. Morton, H.E. Andersen, and S. Banerjee (2017) <arXiv:1702.00434v2>.
+License: GPL (>= 2)
+Encoding: UTF-8
+URL: http://blue.for.msu.edu/software.html
+Repository: CRAN
+NeedsCompilation: yes
+Packaged: 2017-07-16 15:32:45 UTC; andy
+Date/Publication: 2017-07-16 15:50:34 UTC
