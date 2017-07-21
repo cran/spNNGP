@@ -153,6 +153,9 @@ extern "C" {
 	  for(l = 0; l < m; l++){
 	    d = dist2(coords[nnIndx0[i+q*k]], coords[n+nnIndx0[i+q*k]], coords[nnIndx0[i+q*l]], coords[n+nnIndx0[i+q*l]]);
 	    C[threadID*mm+l*m+k] = sigmaSq*spCor(d, phi, nu, covModel, &bk[threadID*nb]);
+	    if(k == l){
+	      C[threadID*mm+l*m+k] += tauSq;
+	    }
 	  }
 	}
 
@@ -163,12 +166,11 @@ extern "C" {
 
 	d = 0;
 	for(k = 0; k < m; k++){
-	  d += tmp_m[threadID*m+k]*(y[nnIndx0[i+q*k]] - F77_NAME(ddot)(&p, &X[nnIndx0[i]], &n, &beta[s*p], &inc));
+	  d += tmp_m[threadID*m+k]*(y[nnIndx0[i+q*k]] - F77_NAME(ddot)(&p, &X[nnIndx0[i+q*k]], &n, &beta[s*p], &inc));
 	}
-	
-	y0[s*q+i] = rnorm(F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + d,
-			  sqrt(theta[s*nTheta+sigmaSqIndx] + theta[s*nTheta+tauSqIndx] -
-			       F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc)));
+
+	y0[s*q+i] = F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + d + sqrt(sigmaSq + tauSq - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*z[zIndx];
+	zIndx++;
 	
       }
 

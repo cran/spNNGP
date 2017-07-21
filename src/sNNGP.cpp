@@ -195,6 +195,12 @@ extern "C" {
     int *uIndxLU = (int *) R_alloc(2*n, sizeof(int));
     
     //make u index
+    if(verbose){
+      Rprintf("Building neighbors of neighbor index\n");
+      #ifdef Win32
+        R_FlushConsole();
+      #endif
+    }
     mkUIndx(n, m, nnIndx, uIndx, uIndxLU);
     
     //u lists those locations that have the i-th location as a neighbor
@@ -255,7 +261,7 @@ extern "C" {
     double *w = (double *) R_alloc(n, sizeof(double)); zeros(w, n);
     double a, v, b, e, mu, var, aij, phiCand, nuCand = 0, nu = 0;
 
-    double *bk = (double *) R_alloc(nThreads*(static_cast<int>(1.0+nuUnifb)), sizeof(double));
+    double *bk = (double *) R_alloc(nThreads*(1.0+static_cast<int>(floor(nuUnifb))), sizeof(double));
     
     F77_NAME(dgemm)(ytran, ntran, &p, &p, &n, &one, X, &n, X, &n, &zero, XtX, &p);
 

@@ -236,11 +236,17 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     colnames(out$p.theta.samples) <- col.names
     colnames(out$p.beta.samples) <- x.names
 
-    out$y <- y
-    out$X <- X
-    out$n.neighbors <- n.neighbors
-    out$coords <- coords
+    if(nngp == "sNNGP"){
+        out$p.w.samples.ord <- out$p.w.samples
+        out$p.w.samples <- out$p.w.samples[order(ord),]
+    }
+    
     out$ord <- ord
+    out$coords.ord <- coords
+    out$y.ord <- y
+    out$X.ord <- X
+    
+    out$n.neighbors <- n.neighbors
     out$cov.model <- cov.model
     out$cov.model.indx <- cov.model.indx
 

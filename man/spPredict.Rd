@@ -110,7 +110,7 @@ n.samples <- 500
 
 starting <- list("phi"=phi, "sigma.sq"=5, "tau.sq"=1)
 
-tuning <- list("phi"=0.1, "sigma.sq"=0.1, "tau.sq"=0.1)
+tuning <- list("phi"=0.5, "sigma.sq"=0.5, "tau.sq"=0.5)
 
 priors <- list("phi.Unif"=c(3/1, 3/0.01), "sigma.sq.IG"=c(2, 5), "tau.sq.IG"=c(2, 1))
 
@@ -135,7 +135,7 @@ plot(apply(p.s$p.y.0, 1, mean), y.ho)
 
 p.r <- spPredict(m.r, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=2)
 
-plot(apply(p.r$p.y.0, 1, mean), y.ho)
+points(apply(p.r$p.y.0, 1, mean), y.ho, pch=19, col="blue")
 
 }
 

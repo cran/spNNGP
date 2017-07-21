@@ -114,12 +114,12 @@ extern "C" {
       Rprintf("Priors and hyperpriors:\n");
       Rprintf("\tbeta flat.\n");
       Rprintf("\tsigma.sq IG hyperpriors shape=%.5f and scale=%.5f\n", sigmaSqIGa, sigmaSqIGb);
-      Rprintf("------------\n");
-      if(corName == "matern"){
-	Rprintf("Considering %i set(s) of phi, nu, and alpha.\n", g);
-      }else{
-	Rprintf("Considering %i set(s) of phi and alpha.\n", g);
-      }
+      // Rprintf("------------\n");
+      // if(corName == "matern"){
+      // 	Rprintf("Considering %i set(s) of phi, nu, and alpha.\n", g);
+      // }else{
+      // 	Rprintf("Considering %i set(s) of phi and alpha.\n", g);
+      // }
       Rprintf("------------\n");
       if(n0 > 0){
 	Rprintf("Predicting at %i locations.\n", n0);
@@ -209,8 +209,10 @@ extern "C" {
     }
     
     //return stuff
-    SEXP beta_r, ab_r, y0Hat_r, y0HatVar_r;
+    int pp = p*p;
+    SEXP beta_r, betaV_r, ab_r, y0Hat_r, y0HatVar_r;
     PROTECT(beta_r = allocMatrix(REALSXP, p, g)); nProtect++;
+    PROTECT(betaV_r = allocMatrix(REALSXP, pp, g)); nProtect++;
     PROTECT(ab_r = allocMatrix(REALSXP, nTheta, g)); nProtect++;
     PROTECT(y0Hat_r = allocMatrix(REALSXP, n0, g)); nProtect++;
     PROTECT(y0HatVar_r = allocMatrix(REALSXP, n0, g)); nProtect++; 
@@ -221,7 +223,6 @@ extern "C" {
     double *y0HatVar = REAL(y0HatVar_r);
     
     //other stuff
-    int pp = p*p;
     int mp = m*p;
     double *tmp_pp = (double *) R_alloc(pp, sizeof(double));
     double *tmp_p = (double *) R_alloc(p, sizeof(double));
@@ -285,7 +286,10 @@ extern "C" {
       
       //b
       ab[k*2+1] = sigmaSqIGb + 0.5*(Q(B, F, y, y, n, nnIndx, nnIndxLU) - F77_NAME(ddot)(&p, &beta[k*p], &inc, tmp_p, &inc));
-    
+
+      //save B^{-1} to calculate bB^{−1}/(a − 1) on return
+      F77_NAME(dcopy)(&pp, tmp_pp, &inc, &REAL(betaV_r)[k*pp], &inc);
+      
       //prediction
       for(i = 0; i < n0; i++){
 
@@ -330,7 +334,8 @@ extern "C" {
 	F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, tmp_p2, &inc);
 	
 	y0HatVar[k*n0+i] = ab[k*2+1] * (F77_NAME(ddot)(&p, tmp_p, &inc, tmp_p2, &inc) + 1.0 + alpha - F77_NAME(ddot)(&m, &tmp_mn0[i*m], &inc, &c0[i*m], &inc))/(ab[k*2]-1.0);
-	
+
+	R_CheckUserInterrupt();
       }
    
       //report
@@ -345,8 +350,7 @@ extern "C" {
 	R_FlushConsole();
         #endif
       }
-      
-      
+         
       R_CheckUserInterrupt();
     }
     
@@ -354,7 +358,7 @@ extern "C" {
 
     //make return object
     SEXP result_r, resultName_r;
-    int nResultListObjs = 2;
+    int nResultListObjs = 3;
 
     if(n0 > 0){
       nResultListObjs += 2;
@@ -368,12 +372,15 @@ extern "C" {
     PROTECT(resultName_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
     
     SET_VECTOR_ELT(result_r, 0, beta_r);
-    SET_VECTOR_ELT(resultName_r, 0, mkChar("beta")); 
-    
+    SET_VECTOR_ELT(resultName_r, 0, mkChar("beta.hat")); 
+
     SET_VECTOR_ELT(result_r, 1, ab_r);
     SET_VECTOR_ELT(resultName_r, 1, mkChar("ab")); 
 
-    i = 2;
+    SET_VECTOR_ELT(result_r, 2, betaV_r);
+    SET_VECTOR_ELT(resultName_r, 2, mkChar("beta.var")); 
+    
+    i = 3;
     
     if(n0 > 0){
       SET_VECTOR_ELT(result_r, i, y0Hat_r);

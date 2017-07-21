@@ -191,6 +191,7 @@ extern "C" {
     if(verbose){
       Rprintf("----------------------------------------\n");
       Rprintf("\tBuilding neighbor index\n");
+      Rprintf("----------------------------------------\n");
       #ifdef Win32
         R_FlushConsole();
       #endif
@@ -243,7 +244,7 @@ extern "C" {
     double *tmp_p = (double *) R_alloc(p, sizeof(double));
     double *tmp_p2 = (double *) R_alloc(p, sizeof(double));
     double *tmp_n = (double *) R_alloc(n, sizeof(double));
-    double *bk = (double *) R_alloc(nThreads*(static_cast<int>(1.0+nuUnifb)), sizeof(double));
+    double *bk = (double *) R_alloc(nThreads*(1.0+static_cast<int>(floor(nuUnifb))), sizeof(double));
     
     bool thetaUpdate = true;
     
@@ -255,7 +256,6 @@ extern "C" {
     QCurrent = Q(B, F, tmp_n, tmp_n, n, nnIndx, nnIndxLU);
 
     if(verbose){
-      Rprintf("----------------------------------------\n");
       Rprintf("\t\tSampling\n");
       Rprintf("----------------------------------------\n");
       #ifdef Win32

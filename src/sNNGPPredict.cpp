@@ -169,10 +169,10 @@ extern "C" {
 	  d += tmp_m[threadID*m+k]*w[s*n+nnIndx0[i+q*k]];
 	}
 
-	w0[s*q+i] = sqrt(theta[s*nTheta+sigmaSqIndx] - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*z[zIndx] + d;
+	w0[s*q+i] = sqrt(sigmaSq - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*z[zIndx] + d;
 	zIndx++;
 	
-	y0[s*q+i] = sqrt(theta[s*nTheta+tauSqIndx])*z[zIndx] + F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + w0[s*q+i];
+	y0[s*q+i] = sqrt(tauSq)*z[zIndx] + F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + w0[s*q+i];
 	zIndx++;
       }
       

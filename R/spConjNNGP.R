@@ -1,6 +1,6 @@
 spConjNNGP <- function(formula, data = parent.frame(), coords, n.neighbors = 15,
                        theta.alpha, sigma.sq.IG, cov.model = "exponential",
-                       k.fold, score.rule,
+                       k.fold = 5, score.rule = "crps",
                        X.0, coords.0, 
                        n.omp.threads = 1, search.type = "tree",
                        return.neighbors = FALSE, verbose=TRUE, ...){
@@ -60,7 +60,7 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, n.neighbors = 15,
     nn.indx.0 <- 0
     
     if(!missing(X.0)){
-        if(!is.matrix(X.0) || ncol(X.0) != p){stop(paste("error: coords must n.0-by-",p," matrix"), sep="")}
+        if(!is.matrix(X.0) || ncol(X.0) != p){stop(paste("error: X.0 must n.0-by-",p," matrix", sep=""))}
         n.0 <- nrow(X.0)
         if(missing(coords.0)){stop("error: coords.0 must specified")}
         if(ncol(coords.0) != 2 || nrow(coords.0) != n.0){
@@ -95,12 +95,20 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, n.neighbors = 15,
     ####################################################
     ##Parameters
     ####################################################
-    if(is.vector(theta.alpha)){
-        theta.alpha <- t(as.matrix(theta.alpha))
+    if(any(is.matrix(theta.alpha), is.vector(theta.alpha))){
+        if(is.vector(theta.alpha)){
+            theta.alpha <- t(as.matrix(theta.alpha))
+            k.fold <- NA
+            ##message("Only one set of parameters given in theta.alpha, ignoring k.fold and score.rule")
+        }else{##is matrix
+            if(any(is.na(k.fold), k.fold < 2, k.fold >= n)){
+                stop("error: k.fold must be greater than 1 and less than n")
+            }
+        }   
+    }else{
+        stop("error: theta.alpha must be a vector or matrix")
     }
-
-    if(!is.matrix(theta.alpha)){stop("error: theta.alpha must matrix of parameter values")}
-   
+    
     if(!"phi"%in%colnames(theta.alpha)){stop("error: column name phi must be specified in theta.alpha")}
     if(!"alpha"%in%colnames(theta.alpha)){stop("error: column name alpha must be specified in theta.alpha")}
 
@@ -122,7 +130,6 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, n.neighbors = 15,
     ####################################################
     ##Priors
     ####################################################
-  
     if(missing(sigma.sq.IG)) {stop("error: sigma.sq.IG must be specified")}
     
     if(!is.vector(sigma.sq.IG) || length(sigma.sq.IG) != 2){stop("error: sigma.sq.IG must be a vector of length 2")}
@@ -155,17 +162,8 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, n.neighbors = 15,
     ####################################################
     ptm <- proc.time()
     
-    if(!missing(k.fold)){
-        
-        if(k.fold < 2 || k.fold >= n){
-            stop("error: k.fold must be greater than 1 and less than n")
-        }
-        
-        if(missing(score.rule)){
-            warning("score.rule not specified, defaulting to CRPS")
-            score.rule <- "crps"
-        }
-
+    if(!is.na(k.fold)){
+                
         score.rule.names <- c("rmspe","crps")
         
         if(!score.rule%in%score.rule.names){
@@ -239,39 +237,47 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, n.neighbors = 15,
         k.fold.scores <- cbind(t(theta.alpha),k.fold.scores/k.fold)
 
         theta.alpha <- theta.alpha[,which.min(k.fold.scores[,score.rule])]
-        g <- 1
-        
         storage.mode(theta.alpha) <- "double"
-        storage.mode(g) <- "integer"
     }
 
 
     ##final run
+    g <- 1
+    storage.mode(g) <- "integer"
+    
     out <- .Call("cNNGP", y, X, p, n, coords, theta.alpha,
                  X.0, coords.0, n.0, nn.indx.0, g,
                  n.neighbors, sigma.sq.IG, cov.model.indx, n.omp.threads, search.type.indx, return.neighbors, verbose)
         
     out$run.time <- proc.time() - ptm
 
-    sigma.sq.hat <- out$ab[2,]/(out$ab[1,]-1)
-    out$theta.alpha.sigmaSq <- cbind(t(theta.alpha), sigma.sq.hat)
+ 
+    out$theta.alpha <- t(theta.alpha)
 
-    out$beta.hat <- t(out$beta)
+    out$sigma.sq.hat <- out$ab[2,]/(out$ab[1,]-1)
+    out$sigma.sq.var <- out$ab[2,]^2/((out$ab[1,]-1)^2*(out$ab[1,]-2))
+    out$beta.hat <- t(out$beta.hat)
+    beta.var <- matrix(out$beta.var, p, p)
+    beta.var[upper.tri(beta.var, FALSE)] <- t(beta.var)[upper.tri(beta.var, FALSE)]
+    out$beta.var <- out$ab[2,]*beta.var/(out$ab[1,]-1)
     colnames(out$beta.hat) <- x.names
-
-    out$y <- y
-    out$X <- X
+    rownames(out$beta.var) <- colnames(out$beta.var) <- x.names
+    
+    out$ab <- NULL
+    
     out$n.neighbors <- n.neighbors
-    out$coords <- coords
-    out$ord <- ord
-    out$cov.model <- cov.model
-
-    if(!missing(k.fold)){
+    #out$cov.model <- cov.model
+    
+    if(!is.na(k.fold)){
         out$k.fold.scores <- k.fold.scores
     }
-
+    
     if(return.neighbors){
         out$n.indx <- mk.n.indx.list(out$n.indx, n, n.neighbors)
+        out$ord <- ord
+        out$coords.ord <- coords
+        out$y.ord <- y
+        out$X.ord <- X
     }
 
     class(out) <- "cNNGP"

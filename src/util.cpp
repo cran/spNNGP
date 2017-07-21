@@ -258,7 +258,7 @@ void get_nn(Node *Tree, int index, int d, double *coords, int n, double *nnDist,
     
     get_nn(temp1,index,(d+1)%P,coords,n, nnDist, nnIndx, iNNIndx, iNN, check);
     
-    if(abs(coords[Tree->index]-coords[index])>nnDist[iNNIndx+iNN-1]){
+    if(fabs(coords[Tree->index]-coords[index])>nnDist[iNNIndx+iNN-1]){
       return;
     }
     
@@ -273,7 +273,7 @@ void get_nn(Node *Tree, int index, int d, double *coords, int n, double *nnDist,
     
     get_nn(temp1,index,(d+1)%P,coords,n, nnDist, nnIndx, iNNIndx, iNN,check);
 
-    if(abs(coords[Tree->index+n]-coords[index+n])>nnDist[iNNIndx+iNN-1]){
+    if(fabs(coords[Tree->index+n]-coords[index+n])>nnDist[iNNIndx+iNN-1]){
       return;
     }
     

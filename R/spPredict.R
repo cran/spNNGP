@@ -17,19 +17,19 @@ spPredict <- function(sp.obj, X.0, coords.0, start=1, end, thin=1, n.omp.threads
     
     obj.class <- class(sp.obj)
     
-    X <- sp.obj$X
-    y <- sp.obj$y
+    X <- sp.obj$X.ord
+    y <- sp.obj$y.ord
+    coords <- sp.obj$coords.ord
     n <- nrow(X)
     p <- ncol(X)
+    
     p.theta.samples <- sp.obj$p.theta.samples
     p.beta.samples <- sp.obj$p.beta.samples
     n.samples <- nrow(p.beta.samples)
     if(obj.class == "sNNGP"){
-        p.w.samples <- sp.obj$p.w.samples
+        p.w.samples <- sp.obj$p.w.samples.ord
     }    
     n.neighbors <- sp.obj$n.neighbors
-    coords <- sp.obj$coords
-    ord <- sp.obj$ord
     cov.model.indx <- sp.obj$cov.model.indx
 
     ##subsamples
