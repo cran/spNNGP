@@ -12,7 +12,7 @@
 #endif
 
 //Description: update B and F.
-void updateConjBF(double *B, double *F, double *c, double *C, double *D, double *d, int *nnIndxLU, int *CIndx, int n, double phi, double alpha, double nu, int covModel, double *bk, double nuMax){
+void updateConjBF(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double phi, double alpha, double nu, int covModel, double *bk, double nuMax){
     
   int i, k, l;
   int info = 0;
@@ -24,9 +24,11 @@ void updateConjBF(double *B, double *F, double *c, double *C, double *D, double 
   //bk must be 1+(int)floor(alpha) * nthread
   int nb = 1+static_cast<int>(floor(nuMax));
   int threadID = 0;
+  double e;
+  int mm = m*m;
   
 #ifdef _OPENMP
-#pragma omp parallel for private(k, l, info, threadID)
+#pragma omp parallel for private(k, l, info, threadID, e)
 #endif
     for(i = 0; i < n; i++){
 #ifdef _OPENMP   
@@ -34,18 +36,21 @@ void updateConjBF(double *B, double *F, double *c, double *C, double *D, double 
 #endif
       if(i > 0){
 	for(k = 0; k < nnIndxLU[n+i]; k++){
-	  c[nnIndxLU[i]+k] = spCor(d[nnIndxLU[i]+k], phi, nu, covModel, &bk[threadID*nb]);
+	  e = dist2(coords[i], coords[n+i], coords[nnIndx[nnIndxLU[i]+k]], coords[n+nnIndx[nnIndxLU[i]+k]]);
+	  c[m*threadID+k] = spCor(e, phi, nu, covModel, &bk[threadID*nb]);
 	  for(l = 0; l <= k; l++){
-	    C[CIndx[i]+l*nnIndxLU[n+i]+k] = spCor(D[CIndx[i]+l*nnIndxLU[n+i]+k], phi, nu, covModel, &bk[threadID*nb]); 
+	    e = dist2(coords[nnIndx[nnIndxLU[i]+k]], coords[n+nnIndx[nnIndxLU[i]+k]], coords[nnIndx[nnIndxLU[i]+l]], coords[n+nnIndx[nnIndxLU[i]+l]]);
+	    C[mm*threadID+l*nnIndxLU[n+i]+k] = spCor(e, phi, nu, covModel, &bk[threadID*nb]); 
 	    if(l == k){
-	      C[CIndx[i]+l*nnIndxLU[n+i]+k] += alpha;
+	      C[mm*threadID+l*nnIndxLU[n+i]+k] += alpha;
 	    }
 	  }
 	}
-	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[CIndx[i]], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[CIndx[i]], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotri failed\n");}
-	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[CIndx[i]], &nnIndxLU[n+i], &c[nnIndxLU[i]], &inc, &zero, &B[nnIndxLU[i]], &inc);
-	F[i] = 1.0 + alpha - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[nnIndxLU[i]], &inc);
+	
+	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotrf failed\n");}
+	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc);
+	F[i] = 1.0 + alpha - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[m*threadID], &inc);
       }else{
 	B[i] = 0;
 	F[i] = 1.0 + alpha;
@@ -56,9 +61,9 @@ void updateConjBF(double *B, double *F, double *c, double *C, double *D, double 
 
 extern "C" {
   
-  SEXP cNNGP(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP coords_r, SEXP thetaAlpha_r, 
+  SEXP cNNGP(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP coords_r, SEXP thetaAlpha_r, SEXP nnIndx_r, SEXP nnIndxLU_r,
 	     SEXP X0_r, SEXP coords0_r, SEXP n0_r, SEXP nnIndx0_r, SEXP g_r, 
-	     SEXP m_r, SEXP sigmaSqIG_r, SEXP covModel_r, SEXP nThreads_r, SEXP sType_r, SEXP returnNNIndx_r, SEXP verbose_r){
+	     SEXP m_r, SEXP sigmaSqIG_r, SEXP covModel_r, SEXP nThreads_r, SEXP verbose_r){
     
     int h, i, j, k, l, s, info, nProtect=0;
     const int inc = 1;
@@ -78,7 +83,9 @@ extern "C" {
     int p = INTEGER(p_r)[0];
     int n = INTEGER(n_r)[0];
     double *coords = REAL(coords_r);
-
+    int *nnIndx = INTEGER(nnIndx_r);
+    int *nnIndxLU = INTEGER(nnIndxLU_r);
+    
     double *X0 = REAL(X0_r);
     int n0 = INTEGER(n0_r)[0];
     double *coords0 = REAL(coords0_r);
@@ -110,6 +117,11 @@ extern "C" {
       Rprintf("Number of covariates %i (including intercept if specified).\n\n", p);
       Rprintf("Using the %s spatial correlation model.\n\n", corName.c_str());
       Rprintf("Using %i nearest neighbors.\n\n", m);
+#ifdef _OPENMP
+      Rprintf("Source compiled with OpenMP support and model fit using %i thread(s).\n", nThreads);
+#else
+      Rprintf("Source not compiled with OpenMP support.\n");
+#endif
       Rprintf("------------\n");
       Rprintf("Priors and hyperpriors:\n");
       Rprintf("\tbeta flat.\n");
@@ -120,16 +132,10 @@ extern "C" {
       // }else{
       // 	Rprintf("Considering %i set(s) of phi and alpha.\n", g);
       // }
-      Rprintf("------------\n");
       if(n0 > 0){
-	Rprintf("Predicting at %i locations.\n", n0);
 	Rprintf("------------\n");
+	Rprintf("Predicting at %i locations.\n", n0);
       }
-#ifdef _OPENMP
-      Rprintf("\nSource compiled with OpenMP support and model fit using %i thread(s).\n", nThreads);
-#else
-      Rprintf("\n\nSource not compiled with OpenMP support.\n");
-#endif
     } 
     
     //parameters
@@ -139,83 +145,29 @@ extern "C" {
       nTheta++;//nu
     }
     
-
-    //allocated for the nearest neighbor index vector (note, first location has no neighbors).
-    int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
-    //int *nnIndx = (int *) R_alloc(nIndx, sizeof(int));
-    SEXP nnIndx_r; PROTECT(nnIndx_r = allocVector(INTSXP, nIndx)); nProtect++; int *nnIndx = INTEGER(nnIndx_r);
-    double *d = (double *) R_alloc(nIndx, sizeof(double));
-    int *nnIndxLU = (int *) R_alloc(2*n, sizeof(int)); //first column holds the nnIndx index for the i-th location and the second columns holds the number of neighbors the i-th location has (the second column is a bit of a waste but will simplifying some parallelization).
-
-    //make the neighbor index
-    if(verbose){
-      Rprintf("----------------------------------------\n");
-      Rprintf("\tBuilding neighbor index\n");
-      #ifdef Win32
-        R_FlushConsole();
-      #endif
-    }
-    
-    if(INTEGER(sType_r)[0] == 0){
-      mkNNIndx(n, m, coords, nnIndx, d, nnIndxLU);
-    }else{
-      mkNNIndxTree0(n, m, coords, nnIndx, d, nnIndxLU);
-    }
-       
     //other stuff
+    int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
+    int mm = m*m;
     double *B = (double *) R_alloc(nIndx, sizeof(double));
     double *F = (double *) R_alloc(n, sizeof(double));
-    double *c =(double *) R_alloc(nIndx, sizeof(double));
-    
-    int *CIndx = (int *) R_alloc(2*n, sizeof(int)); //index for D and C.
-    for(i = 0, j = 0; i < n; i++){//zero should never be accessed
-      j += nnIndxLU[n+i]*nnIndxLU[n+i];
-      if(i == 0){
-	CIndx[n+i] = 0;
-	CIndx[i] = 0;
-      }else{
-	CIndx[n+i] = nnIndxLU[n+i]*nnIndxLU[n+i]; 
-	CIndx[i] = CIndx[n+i-1] + CIndx[i-1];
-      }
-    }
-    
-    double *C = (double *) R_alloc(j, sizeof(double)); zeros(C, j);
-    double *D = (double *) R_alloc(j, sizeof(double)); zeros(D, j);
-    
-    for(i = 0; i < n; i++){
-      for(k = 0; k < nnIndxLU[n+i]; k++){   
-	for(l = 0; l <= k; l++){
-	  D[CIndx[i]+l*nnIndxLU[n+i]+k] = dist2(coords[nnIndx[nnIndxLU[i]+k]], coords[n+nnIndx[nnIndxLU[i]+k]], coords[nnIndx[nnIndxLU[i]+l]], coords[n+nnIndx[nnIndxLU[i]+l]]);
-	}
-      }
-    }
-
+    double *c =(double *) R_alloc(m*nThreads, sizeof(double));   
+    double *C = (double *) R_alloc(mm*nThreads, sizeof(double));
+   
     //prediction
-    int mm = m*m;
-    double *tmp_m = new double[m];
-    double *D0 = new double[n0*mm];
-    double *d0 = new double[n0*m];
-    double *C0 = new double[n0*mm];
-    double *c0 = new double[n0*m];
-    double *tmp_mn0 = new double[n0*m];
-    
-    for(i = 0; i < n0; i++){
-      for(k = 0; k < m; k++){
-	d0[i*m+k] = dist2(coords0[i], coords0[n0+i], coords[nnIndx0[k*n0+i]], coords[n+nnIndx0[k*n0+i]]);
-	for(l = 0; l < m; l++){
-	  D0[i*mm+k*m+l] = dist2(coords[nnIndx0[k*n0+i]], coords[n+nnIndx0[k*n0+i]], coords[nnIndx0[l*n0+i]], coords[n+nnIndx0[l*n0+i]]);
-	}
-      }
-    }
+    double *tmp_m = (double *) R_alloc(nThreads*m, sizeof(double));
+    double *C0 = (double *) R_alloc(nThreads*mm, sizeof(double));
+    double *c0 = (double *) R_alloc(nThreads*m, sizeof(double));
+    double *w = (double *) R_alloc(nThreads*m, sizeof(double));
     
     //return stuff
     int pp = p*p;
-    SEXP beta_r, betaV_r, ab_r, y0Hat_r, y0HatVar_r;
+    SEXP beta_r, ab_r, bBInv_r, bb_r, y0Hat_r, y0HatVar_r;
     PROTECT(beta_r = allocMatrix(REALSXP, p, g)); nProtect++;
-    PROTECT(betaV_r = allocMatrix(REALSXP, pp, g)); nProtect++;
     PROTECT(ab_r = allocMatrix(REALSXP, nTheta, g)); nProtect++;
+    PROTECT(bBInv_r = allocMatrix(REALSXP, pp, g)); nProtect++;
+    PROTECT(bb_r = allocMatrix(REALSXP, p, g)); nProtect++;
     PROTECT(y0Hat_r = allocMatrix(REALSXP, n0, g)); nProtect++;
-    PROTECT(y0HatVar_r = allocMatrix(REALSXP, n0, g)); nProtect++; 
+    PROTECT(y0HatVar_r = allocMatrix(REALSXP, n0, g)); nProtect++;
 
     double *beta = REAL(beta_r);
     double *ab = REAL(ab_r);
@@ -225,15 +177,17 @@ extern "C" {
     //other stuff
     int mp = m*p;
     double *tmp_pp = (double *) R_alloc(pp, sizeof(double));
-    double *tmp_p = (double *) R_alloc(p, sizeof(double));
-    double *tmp_p2 = (double *) R_alloc(p, sizeof(double));
-    double *tmp_mp = (double *) R_alloc(mp, sizeof(double));
-    double phi = 0, nu = 0, alpha = 0;
+    double *tmp_p = (double *) R_alloc(nThreads*p, sizeof(double));
+    double *tmp_p2 = (double *) R_alloc(nThreads*p, sizeof(double));
+    double *tmp_mp = (double *) R_alloc(nThreads*mp, sizeof(double));
+    double phi = 0, nu = 0, alpha = 0, e;
+    int threadID = 0;
     
     //get max nu
     double *bk = NULL;
     double nuMax = 0;
-    
+    int nb = 0;
+     
     if(corName == "matern"){
       for(i = 0; i < g; i++){
 	if(thetaAlpha[i*nTheta+2] > nuMax){
@@ -241,19 +195,17 @@ extern "C" {
 	}
       }
       
-      bk = (double *) R_alloc(nThreads*(static_cast<int>(1.0+nuMax)), sizeof(double));
+      nb = 1+static_cast<int>(floor(nuMax));
+      bk = (double *) R_alloc(nThreads*nb, sizeof(double));
     }
     
     if(verbose){
-      Rprintf("----------------------------------------\n");
+      Rprintf("------------\n");
       Rprintf("\tEstimation for parameter set(s)\n");
-      Rprintf("----------------------------------------\n");
       #ifdef Win32
         R_FlushConsole();
       #endif
     }
-
-    GetRNGstate();
     
     for(k = 0; k < g; k++){
 
@@ -264,7 +216,7 @@ extern "C" {
       }
             
       //update B and F
-      updateConjBF(B, F, c, C, D, d, nnIndxLU, CIndx, n, phi, alpha, nu, covModel, bk, nuMax);
+      updateConjBF(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, phi, alpha, nu, covModel, bk, nuMax);
 
       //estimation
       for(i = 0; i < p; i++){
@@ -287,55 +239,59 @@ extern "C" {
       //b
       ab[k*2+1] = sigmaSqIGb + 0.5*(Q(B, F, y, y, n, nnIndx, nnIndxLU) - F77_NAME(ddot)(&p, &beta[k*p], &inc, tmp_p, &inc));
 
-      //save B^{-1} to calculate bB^{−1}/(a − 1) on return
-      F77_NAME(dcopy)(&pp, tmp_pp, &inc, &REAL(betaV_r)[k*pp], &inc);
-      
+      //save B^{-1} to calculate bB^{−1}/(a − 1) on return also keep \bb for exact sampling
+      F77_NAME(dcopy)(&pp, tmp_pp, &inc, &REAL(bBInv_r)[k*pp], &inc);
+      F77_NAME(dcopy)(&p, tmp_p, &inc, &REAL(bb_r)[k*p], &inc);
+            
       //prediction
+#ifdef _OPENMP
+#pragma omp parallel for private(j, l, info, threadID, e)
+#endif
       for(i = 0; i < n0; i++){
+#ifdef _OPENMP   
+ 	threadID = omp_get_thread_num();
+#endif
+	//make M
+	for(j = 0; j < m; j++){
+	  e = dist2(coords0[i], coords0[n0+i], coords[nnIndx0[j*n0+i]], coords[n+nnIndx0[j*n0+i]]);
+	  c0[m*threadID+j] = spCor(e, phi, nu, covModel, &bk[threadID*nb]);
+	  for(l = 0; l <= j; l++){
+	    e = dist2(coords[nnIndx0[j*n0+i]], coords[n+nnIndx0[j*n0+i]], coords[nnIndx0[l*n0+i]], coords[n+nnIndx0[l*n0+i]]);
+	    C0[mm*threadID+l*m+j] = spCor(e, phi, nu, covModel, &bk[threadID*nb]);
+	    if(l == j){
+	      C0[mm*threadID+l*m+j] += alpha;
+	    }
+	  }
+	}
 
-	//make z
-	for(j = 0; j < m; j++){
-	  c0[i*m+j] = spCor(d0[i*m+j], phi, nu, covModel, bk);
-	}
-	
-	//Make M
-	for(j = 0; j < mm; j++){
-	  C0[i*mm+j] = spCor(D0[i*mm+j], phi, nu, covModel, bk);
-	}
-	
-	for(j = 0; j < m; j++){
-	  C0[i*mm+j*m+j] += alpha;
-	}
-	
 	//make w
-	F77_NAME(dpotrf)(lower, &m, &C0[i*mm], &m, &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(lower, &m, &C0[i*mm], &m, &info); if(info != 0){error("c++ error: dpotri failed\n");}
-	F77_NAME(dsymv)(lower, &m, &one, &C0[i*mm], &m, &c0[i*m], &inc, &zero, &tmp_mn0[i*m], &inc);
+	F77_NAME(dpotrf)(lower, &m, &C0[mm*threadID], &m, &info); if(info != 0){error("c++ error: dpotrf failed\n");}
+	F77_NAME(dpotri)(lower, &m, &C0[mm*threadID], &m, &info); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dsymv)(lower, &m, &one, &C0[mm*threadID], &m, &c0[m*threadID], &inc, &zero, &w[m*threadID], &inc);
 	
 	//make hat(y)
 	for(j = 0; j < m; j++){
-	  tmp_m[j] = y[nnIndx0[j*n0+i]] - F77_NAME(ddot)(&p, &X[nnIndx0[j*n0+i]], &n, &beta[k*p], &inc);
+	  tmp_m[m*threadID+j] = y[nnIndx0[j*n0+i]] - F77_NAME(ddot)(&p, &X[nnIndx0[j*n0+i]], &n, &beta[k*p], &inc);
 	}
 	
-	y0Hat[k*n0+i] = ddot_(&p, &X0[i], &n0, &beta[k*p], &inc) + F77_NAME(ddot)(&m, &tmp_mn0[i*m], &inc, tmp_m, &inc);
+	y0Hat[k*n0+i] = F77_NAME(ddot)(&p, &X0[i], &n0, &beta[k*p], &inc) + F77_NAME(ddot)(&m, &w[m*threadID], &inc, &tmp_m[m*threadID], &inc);
 	
 	//make u
 	for(j = 0; j < m; j++){
-	  F77_NAME(dcopy)(&p, &X[nnIndx0[j*n0+i]], &n, &tmp_mp[j], &m);
+	  F77_NAME(dcopy)(&p, &X[nnIndx0[j*n0+i]], &n, &tmp_mp[mp*threadID+j], &m);
 	}
 	
-	F77_NAME(dgemv)(ytran, &m, &p, &one, tmp_mp, &m, &tmp_mn0[i*m], &inc, &zero, tmp_p, &inc);
+	F77_NAME(dgemv)(ytran, &m, &p, &one, &tmp_mp[mp*threadID], &m, &w[m*threadID], &inc, &zero, &tmp_p[p*threadID], &inc);
 	
 	for(j = 0; j < p; j++){
-	  tmp_p[j] = X0[j*n0+i] - tmp_p[j];
+	  tmp_p[p*threadID+j] = X0[j*n0+i] - tmp_p[p*threadID+j];
 	}
 	
 	//make v_y and var(y)
-	F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, tmp_p2, &inc);
+	F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, &tmp_p[p*threadID], &inc, &zero, &tmp_p2[p*threadID], &inc);
 	
-	y0HatVar[k*n0+i] = ab[k*2+1] * (F77_NAME(ddot)(&p, tmp_p, &inc, tmp_p2, &inc) + 1.0 + alpha - F77_NAME(ddot)(&m, &tmp_mn0[i*m], &inc, &c0[i*m], &inc))/(ab[k*2]-1.0);
+	y0HatVar[k*n0+i] = ab[k*2+1] * (F77_NAME(ddot)(&p, &tmp_p[p*threadID], &inc, &tmp_p2[p*threadID], &inc) + 1.0 + alpha - F77_NAME(ddot)(&m, &w[m*threadID], &inc, &c0[m*threadID], &inc))/(ab[k*2]-1.0);
 
-	R_CheckUserInterrupt();
       }
    
       //report
@@ -354,19 +310,15 @@ extern "C" {
       R_CheckUserInterrupt();
     }
     
-    PutRNGstate();
-
     //make return object
     SEXP result_r, resultName_r;
-    int nResultListObjs = 3;
-
+    int nResultListObjs = 4;
+    
     if(n0 > 0){
       nResultListObjs += 2;
     }
-    
-    if(INTEGER(returnNNIndx_r)[0]){
-      nResultListObjs++;
-    }
+
+    i = 0;
     
     PROTECT(result_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
     PROTECT(resultName_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
@@ -376,25 +328,19 @@ extern "C" {
 
     SET_VECTOR_ELT(result_r, 1, ab_r);
     SET_VECTOR_ELT(resultName_r, 1, mkChar("ab")); 
-
-    SET_VECTOR_ELT(result_r, 2, betaV_r);
-    SET_VECTOR_ELT(resultName_r, 2, mkChar("beta.var")); 
     
-    i = 3;
+    SET_VECTOR_ELT(result_r, 2, bBInv_r);
+    SET_VECTOR_ELT(resultName_r, 2, mkChar("bB.inv"));
     
+    SET_VECTOR_ELT(result_r, 3, bb_r);
+    SET_VECTOR_ELT(resultName_r, 3, mkChar("bb"));
+        
     if(n0 > 0){
-      SET_VECTOR_ELT(result_r, i, y0Hat_r);
-      SET_VECTOR_ELT(resultName_r, i, mkChar("y.0.hat"));
-      i++;
+      SET_VECTOR_ELT(result_r, 4, y0Hat_r);
+      SET_VECTOR_ELT(resultName_r, 4, mkChar("y.0.hat"));
       
-      SET_VECTOR_ELT(result_r, i, y0HatVar_r);
-      SET_VECTOR_ELT(resultName_r, i, mkChar("y.0.hat.var"));
-      i++;
-    }
-
-    if(INTEGER(returnNNIndx_r)[0]){
-      SET_VECTOR_ELT(result_r, i, nnIndx_r);
-      SET_VECTOR_ELT(resultName_r, i, mkChar("n.indx")); 
+      SET_VECTOR_ELT(result_r, 5, y0HatVar_r);
+      SET_VECTOR_ELT(resultName_r, 5, mkChar("y.0.hat.var")); 
     }
     
     namesgets(result_r, resultName_r);

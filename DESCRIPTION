@@ -1,20 +1,19 @@
 Package: spNNGP
 Title: Spatial Regression Models for Large Datasets using Nearest
         Neighbor Gaussian Processes
-Version: 0.1.1
-Date: 2017-07-14
-Authors@R: c(person("Andrew", "Finley", role=c("aut", "cre"), email="finleya@msu.edu"), person("Abhirup", "Datta", role="aut", email="abhidatta@jhu.edu"), person("Sudipto", "Banerjee", role="aut", email="sudipto@ucla.edu"), person("Alexander", "Mckim", role="ctb", email="amckim@g.clemson.edu"))
+Version: 0.1.2
+Date: 2019-08-28
+Authors@R: c(person("Andrew", "Finley", role=c("aut", "cre"), email="finleya@msu.edu"), person("Abhirup", "Datta", role="aut", email="abhidatta@jhu.edu"), person("Sudipto", "Banerjee", role="aut", email="sudipto@ucla.edu"))
 Maintainer: Andrew Finley <finleya@msu.edu>
 Author: Andrew Finley [aut, cre],
- Abhirup Datta [aut],
- Sudipto Banerjee [aut],
- Alexander Mckim [ctb]
-Depends: R (>= 2.10), coda, Formula, RANN
-Description: Fits Gaussian univariate Bayesian spatial regression models for large datasets using Nearest Neighbor Gaussian Processes (NNGP) detailed in Datta, Banerjee, Finley, and Gelfand (2016) <doi:10.1080/01621459.2015.1044091> and Finley, Datta, Cook, Morton, Andersen, and Banerjee (2017) <arXiv:1702.00434v2>.
+  Abhirup Datta [aut],
+  Sudipto Banerjee [aut]
+Depends: R (>= 3.5.0), coda, Formula, RANN
+Description: Fits univariate Bayesian spatial regression models for large datasets using Nearest Neighbor Gaussian Processes (NNGP) detailed in Finley, Datta, Cook, Morton, Andersen, and Banerjee (2019) <doi:10.1080/10618600.2018.1537924> and Datta, Banerjee, Finley, and Gelfand (2016) <doi:10.1080/01621459.2015.1044091>.
 License: GPL (>= 2)
 Encoding: UTF-8
 URL: http://blue.for.msu.edu/software.html
 Repository: CRAN
 NeedsCompilation: yes
-Packaged: 2017-07-21 14:42:41 UTC; andy
-Date/Publication: 2017-07-21 22:33:23 UTC
+Packaged: 2019-09-02 00:53:30 UTC; root
+Date/Publication: 2019-09-03 08:50:02 UTC

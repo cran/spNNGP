@@ -10,9 +10,32 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+ 
+//Description: update replicated data.
+void updateRep(double *B, double *F, int n, double *tmp_m, double *tmp_n, int *nnIndx, int *nnIndxLU){
+
+  char const *ntran = "N";
+  int inc = 1;
+  int i, j;
+  double z;
+  
+  for(i = 0; i < n; i++){
+    z = rnorm(0.0, 1.0);
+    if(i == 0){
+      tmp_n[i] = sqrt(F[i])*z;
+    }else{
+      for(j = 0; j < nnIndxLU[n+i]; j++){
+	tmp_m[j] = tmp_n[nnIndx[nnIndxLU[i]+j]];
+      }
+      tmp_n[i] = F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, tmp_m, &inc)+sqrt(F[i])*z;
+    }
+  }
+  
+}
+
 
 //Description: update B and F.
-double updateBF(double *B, double *F, double *c, double *C, double *D, double *d, int *nnIndxLU, int *CIndx, int n, double *theta, int tauSqIndx, int sigmaSqIndx, int phiIndx, int nuIndx, int covModel, double *bk, double nuUnifb){
+double updateBF(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double *theta, int tauSqIndx, int sigmaSqIndx, int phiIndx, int nuIndx, int covModel, double *bk, double nuUnifb){
     
   int i, k, l;
   int info = 0;
@@ -30,9 +53,11 @@ double updateBF(double *B, double *F, double *c, double *C, double *D, double *d
   //bk must be 1+(int)floor(alpha) * nthread
   int nb = 1+static_cast<int>(floor(nuUnifb));
   int threadID = 0;
+  double e;
+  int mm = m*m;
   
 #ifdef _OPENMP
-#pragma omp parallel for private(k, l, info, threadID)
+#pragma omp parallel for private(k, l, info, threadID, e)
 #endif
     for(i = 0; i < n; i++){
 #ifdef _OPENMP
@@ -40,18 +65,20 @@ double updateBF(double *B, double *F, double *c, double *C, double *D, double *d
 #endif
       if(i > 0){
 	for(k = 0; k < nnIndxLU[n+i]; k++){
-	  c[nnIndxLU[i]+k] = theta[sigmaSqIndx]*spCor(d[nnIndxLU[i]+k], theta[phiIndx], nu, covModel, &bk[threadID*nb]);
+	  e = dist2(coords[i], coords[n+i], coords[nnIndx[nnIndxLU[i]+k]], coords[n+nnIndx[nnIndxLU[i]+k]]);
+	  c[m*threadID+k] = theta[sigmaSqIndx]*spCor(e, theta[phiIndx], nu, covModel, &bk[threadID*nb]);
 	  for(l = 0; l <= k; l++){
-	    C[CIndx[i]+l*nnIndxLU[n+i]+k] = theta[sigmaSqIndx]*spCor(D[CIndx[i]+l*nnIndxLU[n+i]+k], theta[phiIndx], nu, covModel, &bk[threadID*nb]); 
+	    e = dist2(coords[nnIndx[nnIndxLU[i]+k]], coords[n+nnIndx[nnIndxLU[i]+k]], coords[nnIndx[nnIndxLU[i]+l]], coords[n+nnIndx[nnIndxLU[i]+l]]);  
+	    C[mm*threadID+l*nnIndxLU[n+i]+k] = theta[sigmaSqIndx]*spCor(e, theta[phiIndx], nu, covModel, &bk[threadID*nb]); 
 	    if(l == k){
-	      C[CIndx[i]+l*nnIndxLU[n+i]+k] += theta[tauSqIndx];
+	      C[mm*threadID+l*nnIndxLU[n+i]+k] += theta[tauSqIndx];
 	    }
 	  }
 	}
-	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[CIndx[i]], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[CIndx[i]], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotri failed\n");}
-	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[CIndx[i]], &nnIndxLU[n+i], &c[nnIndxLU[i]], &inc, &zero, &B[nnIndxLU[i]], &inc);
-	F[i] = theta[sigmaSqIndx] - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[nnIndxLU[i]], &inc) + theta[tauSqIndx];
+	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotrf failed\n");}
+	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc);
+	F[i] = theta[sigmaSqIndx] - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[m*threadID], &inc) + theta[tauSqIndx];
       }else{
 	B[i] = 0;
 	F[i] = theta[sigmaSqIndx] + theta[tauSqIndx];
@@ -67,11 +94,11 @@ double updateBF(double *B, double *F, double *c, double *C, double *D, double *d
 
 extern "C" {
   
-  SEXP rNNGP(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP m_r, SEXP coords_r, SEXP covModel_r, 
+  SEXP rNNGP(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP m_r, SEXP coords_r, SEXP covModel_r, SEXP nnIndx_r, SEXP nnIndxLU_r,
 	     SEXP sigmaSqIG_r, SEXP tauSqIG_r, SEXP phiUnif_r, SEXP nuUnif_r, 
 	     SEXP betaStarting_r, SEXP sigmaSqStarting_r, SEXP tauSqStarting_r, SEXP phiStarting_r, SEXP nuStarting_r,
 	     SEXP sigmaSqTuning_r, SEXP tauSqTuning_r, SEXP phiTuning_r, SEXP nuTuning_r, 
-	     SEXP nSamples_r, SEXP sType_r, SEXP returnNNIndx_r, SEXP nThreads_r, SEXP verbose_r, SEXP nReport_r){
+	     SEXP nSamples_r, SEXP nThreads_r, SEXP verbose_r, SEXP nReport_r, SEXP nRep_r, SEXP repIndx_r){
     
     int h, i, j, k, l, s, info, nProtect=0;
     const int inc = 1;
@@ -92,7 +119,8 @@ extern "C" {
     int n = INTEGER(n_r)[0];
     int m = INTEGER(m_r)[0];
     double *coords = REAL(coords_r);
-    
+    int *nnIndx = INTEGER(nnIndx_r);
+    int *nnIndxLU = INTEGER(nnIndxLU_r);
     int covModel = INTEGER(covModel_r)[0];
     std::string corName = getCorName(covModel);
         
@@ -110,6 +138,8 @@ extern "C" {
     int nThreads = INTEGER(nThreads_r)[0];
     int verbose = INTEGER(verbose_r)[0];
     int nReport = INTEGER(nReport_r)[0];
+    int nRep = INTEGER(nRep_r)[0];
+    int *repIndx = INTEGER(repIndx_r);
     
 #ifdef _OPENMP
     omp_set_num_threads(nThreads);
@@ -180,82 +210,52 @@ extern "C" {
       tuning[nuIndx] = REAL(nuTuning_r)[0];
     }
 
-    //allocated for the nearest neighbor index vector (note, first location has no neighbors).
-    int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
-    //int *nnIndx = (int *) R_alloc(nIndx, sizeof(int));  
-    SEXP nnIndx_r; PROTECT(nnIndx_r = allocVector(INTSXP, nIndx)); nProtect++; int *nnIndx = INTEGER(nnIndx_r);
-    double *d = (double *) R_alloc(nIndx, sizeof(double));
-    int *nnIndxLU = (int *) R_alloc(2*n, sizeof(int)); //first column holds the nnIndx index for the i-th location and the second columns holds the number of neighbors the i-th location has (the second column is a bit of a waste but will simplifying some parallelization).
-
-    //make the neighbor index
-    if(verbose){
-      Rprintf("----------------------------------------\n");
-      Rprintf("\tBuilding neighbor index\n");
-      Rprintf("----------------------------------------\n");
-      #ifdef Win32
-        R_FlushConsole();
-      #endif
-    }
-
-    if(INTEGER(sType_r)[0] == 0){
-      mkNNIndx(n, m, coords, nnIndx, d, nnIndxLU);
-    }else{
-      mkNNIndxTree0(n, m, coords, nnIndx, d, nnIndxLU);
-    }
-
     //other stuff
+    int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
+    int mm = m*m;
     double *thetaCand = (double *) R_alloc(nTheta, sizeof(double));
     double *B = (double *) R_alloc(nIndx, sizeof(double));
     double *F = (double *) R_alloc(n, sizeof(double));
-    double *c =(double *) R_alloc(nIndx, sizeof(double));
-    
-    int *CIndx = (int *) R_alloc(2*n, sizeof(int)); //index for D and C.
-    for(i = 0, j = 0; i < n; i++){//zero should never be accessed
-      j += nnIndxLU[n+i]*nnIndxLU[n+i];
-      if(i == 0){
-	CIndx[n+i] = 0;
-	CIndx[i] = 0;
-      }else{
-	CIndx[n+i] = nnIndxLU[n+i]*nnIndxLU[n+i]; 
-	CIndx[i] = CIndx[n+i-1] + CIndx[i-1];
-      }
-    }
-    
-    double *C = (double *) R_alloc(j, sizeof(double)); zeros(C, j);
-    double *D = (double *) R_alloc(j, sizeof(double)); zeros(D, j);
-    
-    for(i = 0; i < n; i++){
-      for(k = 0; k < nnIndxLU[n+i]; k++){   
-	for(l = 0; l <= k; l++){
-	  D[CIndx[i]+l*nnIndxLU[n+i]+k] = dist2(coords[nnIndx[nnIndxLU[i]+k]], coords[n+nnIndx[nnIndxLU[i]+k]], coords[nnIndx[nnIndxLU[i]+l]], coords[n+nnIndx[nnIndxLU[i]+l]]);
-	}
-      }
-    }
+    double *c =(double *) R_alloc(m*nThreads, sizeof(double));
+    double *C = (double *) R_alloc(mm*nThreads, sizeof(double));
 
     //return stuff  
-    SEXP betaSamples_r, thetaSamples_r;
+    SEXP betaSamples_r, thetaSamples_r, repSamples_r;
     PROTECT(betaSamples_r = allocMatrix(REALSXP, p, nSamples)); nProtect++;
     PROTECT(thetaSamples_r = allocMatrix(REALSXP, nTheta, nSamples)); nProtect++; 
 
+    if(nRep){
+      PROTECT(repSamples_r = allocMatrix(REALSXP, n, nRep)); nProtect++;
+      zeros(REAL(repSamples_r), n*nRep);
+    }
+        
     //other stuff
-    double logPostCand, logPostCurrent, logDetCurrent, logDetCand, QCurrent, QCand, accept = 0, batchAccept = 0, status = 0;
+    double logPostCand, logPostCurrent, logDetCurrent, logDetCand, QCurrent, QCand;
+    int accept = 0, batchAccept = 0, status = 0, repCnt = 0;
     int pp = p*p;
     double *tmp_pp = (double *) R_alloc(pp, sizeof(double));
     double *tmp_p = (double *) R_alloc(p, sizeof(double));
     double *tmp_p2 = (double *) R_alloc(p, sizeof(double));
     double *tmp_n = (double *) R_alloc(n, sizeof(double));
+    double *tmp_n2 = NULL;
+    double *tmp_m = NULL;
+    if(nRep){
+      tmp_n2 = (double *) R_alloc(n, sizeof(double));
+      tmp_m = (double *) R_alloc(m, sizeof(double));
+    }
     double *bk = (double *) R_alloc(nThreads*(1.0+static_cast<int>(floor(nuUnifb))), sizeof(double));
     
     bool thetaUpdate = true;
     
     //update B and F
-    logDetCurrent = updateBF(B, F, c, C, D, d, nnIndxLU, CIndx, n, theta, tauSqIndx, sigmaSqIndx, phiIndx, nuIndx, covModel, bk, nuUnifb);
-    
+    logDetCurrent = updateBF(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta, tauSqIndx, sigmaSqIndx, phiIndx, nuIndx, covModel, bk, nuUnifb);
+
     F77_NAME(dgemv)(ntran, &n, &p, &one, X, &n, beta, &inc, &zero, tmp_n, &inc);
     F77_NAME(daxpy)(&n, &negOne, y, &inc, tmp_n, &inc);
     QCurrent = Q(B, F, tmp_n, tmp_n, n, nnIndx, nnIndxLU);
 
     if(verbose){
+      Rprintf("----------------------------------------\n");
       Rprintf("\t\tSampling\n");
       Rprintf("----------------------------------------\n");
       #ifdef Win32
@@ -293,10 +293,20 @@ extern "C" {
       //update theta
       ///////////////
       F77_NAME(dgemv)(ntran, &n, &p, &one, X, &n, beta, &inc, &zero, tmp_n, &inc);
+      if(nRep && repIndx[s]){
+	F77_NAME(dcopy)(&n, tmp_n, &inc, &REAL(repSamples_r)[repCnt*n], &inc);
+      }
       F77_NAME(daxpy)(&n, &negOne, y, &inc, tmp_n, &inc);
       
       //current    
-      logDetCurrent = updateBF(B, F, c, C, D, d, nnIndxLU, CIndx, n, theta, tauSqIndx, sigmaSqIndx, phiIndx, nuIndx, covModel, bk, nuUnifb);
+      logDetCurrent = updateBF(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta, tauSqIndx, sigmaSqIndx, phiIndx, nuIndx, covModel, bk, nuUnifb);
+
+      //update rep
+      if(nRep && repIndx[s]){
+	updateRep(B, F, n, tmp_m, tmp_n2, nnIndx, nnIndxLU);//tmp_n is tilde{z}
+	F77_NAME(daxpy)(&n, &one, tmp_n2, &inc, &REAL(repSamples_r)[repCnt*n], &inc);
+	repCnt++;
+      }
       
       QCurrent = Q(B, F, tmp_n, tmp_n, n, nnIndx, nnIndxLU);
 
@@ -319,7 +329,7 @@ extern "C" {
       }
       
       //update B and F
-      logDetCand = updateBF(B, F, c, C, D, d, nnIndxLU, CIndx, n, thetaCand, tauSqIndx, sigmaSqIndx, phiIndx, nuIndx, covModel, bk, nuUnifb);
+      logDetCand = updateBF(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, thetaCand, tauSqIndx, sigmaSqIndx, phiIndx, nuIndx, covModel, bk, nuUnifb);
       
       QCand = Q(B, F, tmp_n, tmp_n, n, nnIndx, nnIndxLU);
       
@@ -342,7 +352,7 @@ extern "C" {
       //save samples
       F77_NAME(dcopy)(&p, beta, &inc, &REAL(betaSamples_r)[s*p], &inc);
       F77_NAME(dcopy)(&nTheta, theta, &inc, &REAL(thetaSamples_r)[s*nTheta], &inc);
-
+      
       //report
       if(status == nReport){
 	if(verbose){
@@ -369,7 +379,7 @@ extern "C" {
     SEXP result_r, resultName_r;
     int nResultListObjs = 2;
 
-    if(INTEGER(returnNNIndx_r)[0]){
+    if(nRep){
       nResultListObjs++;
     }
     
@@ -382,9 +392,9 @@ extern "C" {
     SET_VECTOR_ELT(result_r, 1, thetaSamples_r);
     SET_VECTOR_ELT(resultName_r, 1, mkChar("p.theta.samples"));
 
-    if(INTEGER(returnNNIndx_r)[0]){
-      SET_VECTOR_ELT(result_r, 2, nnIndx_r);
-      SET_VECTOR_ELT(resultName_r, 2, mkChar("n.indx")); 
+    if(nRep){
+      SET_VECTOR_ELT(result_r, 2, repSamples_r);
+      SET_VECTOR_ELT(resultName_r, 2, mkChar("y.rep.samples"));
     }
     
     namesgets(result_r, resultName_r);

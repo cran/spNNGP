@@ -1,6 +1,8 @@
-spNNGP <- function(formula, data = parent.frame(), coords, method = "response", n.neighbors = 15, 
+spNNGP <- function(formula, data = parent.frame(), coords, method = "response", family="gaussian", weights, n.neighbors = 15, 
                    starting, tuning, priors, cov.model = "exponential",
-                   n.samples, n.omp.threads = 1, search.type = "tree", return.neighbors = FALSE, verbose = TRUE, n.report=100, ...){
+                   n.samples, n.omp.threads = 1, search.type = "cb", ord, 
+                   return.neighbor.info = FALSE, neighbor.info,
+                   fit.rep = FALSE, sub.sample, verbose = TRUE, n.report=100, ...){
     
     ####################################################
     ##Check for unused args
@@ -12,6 +14,9 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
             warning("'",i, "' is not an argument")
     }
 
+    ##call
+    cl <- match.call()
+    
     ####################################################
     ##Formula
     ####################################################
@@ -20,7 +25,7 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     if(class(formula) == "formula"){
         
         holder <- parseFormula(formula, data)
-        y <- holder[[1]]
+        y <- as.vector(holder[[1]])
         X <- as.matrix(holder[[2]])
         x.names <- holder[[3]]
         
@@ -31,33 +36,113 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     p <- ncol(X)
     n <- nrow(X)
     
-    ##Coords and ordering
-    if(!is.matrix(coords)){stop("error: coords must n-by-2 matrix of xy-coordinate locations")}
-    if(ncol(coords) != 2 || nrow(coords) != n){
-        stop("error: either the coords have more than two columns or then number of rows is different than
-          data used in the model formula")
+    ##Coords
+    if(missing(coords)){stop("error: coords must be specified")}
+    
+    if(is.vector(coords)){
+        if(is.character(coords)){
+            if(all(coords %in% colnames(data))){
+                coords <- as.matrix(data[,coords])
+            }else{
+                stop(paste0("error: coords name ", paste(coords[!(coords %in% colnames(data))], collapse=" and "), " not in data"))
+            }
+        }else if(all(coords %in% (1:ncol(data)))){
+            coords <- as.matrix(data[,coords])
+        }else{
+            stop(paste0("error: coords column index ", paste(coords[!(coords %in% (1:ncol(data)))], collapse=" and "), " not in data"))
+        }
+    }else{
+        if(!any(is.matrix(coords), is.data.frame(coords))){
+            stop("error: coords must n-by-m matrix or dataframe of coordinates or vector indicating the column names or integer indexes in data")
+        }
+        coords <- as.matrix(coords)
+    }
+    
+    if(nrow(coords) != n || ncol(coords) != 2){
+        stop("error: either coords has more than two columns or the number of rows is different than data used in the model formul")
     }
 
-    ##order by x
-    ord <- order(coords[,1])
+    ## This can be slow if n is large, the onus is on the user to check
+    ## if(any(duplicated(coords))){
+    ##     stop("error: duplicated coordinates found. Remove duplicates.")
+    ## }
+    
+    ####################################################
+    ##Family
+    #################################################### 
+    family.names <- c("gaussian","binomial")
+    family <- tolower(family)
+    
+    if(!family%in%family.names){stop("error: specified family '",family,"' is not a valid option; choose from ", paste(family.names, collapse=", ", sep="") ,".")}    
+    if(method == "response" & family != "gaussian"){stop("error: only the sequential method can be used with non-Gaussain family.")}
+    
+    if(family == "binomial"){
+        if(missing(weights)){
+            weights <- rep(1, n)
+        }else if(length(weights) == 1){
+            weights <- rep(weights, n)
+        }else{
+            if(length(weights) != n){
+                stop("error: for non-Gaussian models weights must be of length n or 1 (in which case the specified value is repeted n times)")
+            }
+        }
+    }else{
+        weights <- NA
+    }
+    
+    ####################################################
+    ##Ordering
+    ####################################################
+    neighbor.info.provided <- FALSE
+
+    if(!missing(neighbor.info)){
+
+        if(!all(c("n.neighbors","nn.indx","nn.indx.lu","ord") %in% names(neighbor.info))){stop("The supplied neighbor.info is malformed.")}
+        
+        nn.indx <- neighbor.info$nn.indx
+        nn.indx.lu <- neighbor.info$nn.indx.lu
+        ord <- neighbor.info$ord
+        n.neighbors <- neighbor.info$n.neighbors
+        neighbor.info.provided <- TRUE
+        
+        warning("Using user defined neighbor.info. No checks are done on the supplied neighbor information.")
+        
+    }else{
+        
+        if(missing(ord)){   
+            ord <- order(coords[,1])##default order by x column
+        }else{
+            if(length(ord) != n){stop("error: supplied order vector ord must be of length n")}
+            ## if(search.type == "cb"){
+            ##     warning("switching to search.type='brute' given user defined ordering ord, this could be slow if n is large")
+            ##     search.type <- "brute"
+            ## }
+        }
+    }
+    
     coords <- coords[ord,]
     X <- X[ord,,drop=FALSE]
     y <- y[ord]
 
+    if(family == "binomial"){
+        weights <- weights[ord]
+    }
+    
     storage.mode(y) <- "double"
     storage.mode(X) <- "double"
     storage.mode(p) <- "integer"
     storage.mode(n) <- "integer"
     storage.mode(coords) <- "double"
-
+    storage.mode(weights) <- "integer"
+    
     ####################################################
     ##NNGP method
     ####################################################
     method.names <- c("response","sequential")
+    method <- tolower(method)
     
-    if(!method%in%method.names)
-    {stop("error: specified method '",method,"' is not a valid option; choose from ", paste(method.names, collapse=", ", sep="") ,".")}
-        
+    if(!method%in%method.names){stop("error: specified method '",method,"' is not a valid option; choose from ", paste(method.names, collapse=", ", sep="") ,".")}
+
     ####################################################
     ##Covariance model
     ####################################################
@@ -89,12 +174,14 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     if(!is.vector(sigma.sq.IG) || length(sigma.sq.IG) != 2){stop("error: sigma.sq.IG must be a vector of length 2")}
     if(any(sigma.sq.IG <= 0)){stop("error: sigma.sq.IG must be a positive vector of length 2")}
 
-    if(!"tau.sq.ig" %in% names(priors)){stop("error: tau.sq.IG must be specified")}
-    tau.sq.IG <- priors[["tau.sq.ig"]]
+    if(family == "gaussian"){
+        if(!"tau.sq.ig" %in% names(priors)){stop("error: tau.sq.IG must be specified")}
+        tau.sq.IG <- priors[["tau.sq.ig"]]
+   
+        if(!is.vector(tau.sq.IG) || length(tau.sq.IG) != 2){stop("error: tau.sq.IG must be a vector of length 2")}
+        if(any(tau.sq.IG <= 0)){stop("error: tau.sq.IG must be a positive vector of length 2")}
+    }
     
-    if(!is.vector(tau.sq.IG) || length(tau.sq.IG) != 2){stop("error: tau.sq.IG must be a vector of length 2")}
-    if(any(tau.sq.IG <= 0)){stop("error: tau.sq.IG must be a positive vector of length 2")}
-
     if(!"phi.unif" %in% names(priors)){stop("error: phi.Unif must be specified")}
     phi.Unif <- priors[["phi.unif"]]
     
@@ -137,9 +224,11 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     
     if(!"sigma.sq" %in% names(starting)){stop("error: sigma.sq must be specified in starting value list")}
     sigma.sq.starting <- starting[["sigma.sq"]][1]
-    
-    if(!"tau.sq" %in% names(starting)){stop("error: tau.sq must be specified in starting value list")}
-    tau.sq.starting <- starting[["tau.sq"]][1]
+
+    if(family == "gaussian"){
+        if(!"tau.sq" %in% names(starting)){stop("error: tau.sq must be specified in starting value list")}
+        tau.sq.starting <- starting[["tau.sq"]][1]
+    }
     
     if(!"phi" %in% names(starting)){stop("error: phi must be specified in starting value list")}
     phi.starting <- starting[["phi"]][1]
@@ -169,10 +258,12 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     
     if(!"sigma.sq" %in% names(tuning) & method == "response"){stop("error: sigma.sq must be specified in tuning value list")}
     sigma.sq.tuning <- tuning[["sigma.sq"]][1]
-    
-    if(!"tau.sq" %in% names(tuning) & method == "response"){stop("error: tau.sq must be specified in tuning value list")}
-    tau.sq.tuning <- tuning[["tau.sq"]][1]
-    
+
+    if(family == "gaussian"){
+        if(!"tau.sq" %in% names(tuning) & method == "response"){stop("error: tau.sq must be specified in tuning value list")}
+        tau.sq.tuning <- tuning[["tau.sq"]][1]
+    }
+        
     if(!"phi" %in% names(tuning)){stop("error: phi must be specified in tuning value list")}
     phi.tuning <- tuning[["phi"]][1]
     
@@ -189,15 +280,57 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     ####################################################
     ##nn search 
     ####################################################
-    search.type.names <- c("brute", "tree")
-    
-    if(!search.type %in% search.type.names){
-        stop("error: specified search.type '",search.type,"' is not a valid option; choose from ", paste(search.type.names, collapse=", ", sep="") ,".")
+    if(!neighbor.info.provided){
+        
+        search.type.names <- c("brute", "cb")
+        
+        if(!search.type %in% search.type.names){
+            stop("error: specified search.type '",search.type,"' is not a valid option; choose from ", paste(search.type.names, collapse=", ", sep="") ,".")
+        }
+        
+        ##indexes
+        if(search.type == "brute"){
+            indx <- mkNNIndx(coords, n.neighbors, n.omp.threads)
+        }else{
+            indx <- mkNNIndxCB(coords, n.neighbors, n.omp.threads)
+        }
+        
+        nn.indx <- indx$nnIndx
+        nn.indx.lu <- indx$nnIndxLU
     }
     
-    search.type.indx <- which(search.type == search.type.names)-1##obo for cov model lookup on c side
-    storage.mode(search.type.indx) <- "integer"
-    storage.mode(return.neighbors) <- "integer"
+    storage.mode(nn.indx) <- "integer"
+    storage.mode(nn.indx.lu) <- "integer"
+
+    
+    ####################################################
+    ##fitted and replicated y 
+    ####################################################
+    n.rep <- 0
+    rep.indx <- 0
+    
+    if(fit.rep){
+        
+        if(missing(sub.sample)){
+            sub.sample <- list()
+        }
+
+        start <- ifelse(!"start" %in% names(sub.sample), floor(0.5*n.samples), sub.sample$start)
+        end <- ifelse(!"end" %in% names(sub.sample), n.samples, sub.sample$end)
+        thin <- ifelse(!"thin" %in% names(sub.sample), 1, sub.sample$thin)   
+        if(!is.numeric(start) || start >= n.samples){stop("error: in sub.sample, invalid start")}
+        if(!is.numeric(end) || end > n.samples){stop("error: in sub.sample, invalid end")}
+        if(!is.numeric(thin) || thin >= n.samples){stop("error: in sub.sample, invalid thin")}
+        
+        s.indx <- seq(as.integer(start), as.integer(end), by=as.integer(thin))
+        sub.sample <- list(start=start, end=end, thin=thin)
+        n.rep <- length(s.indx)
+        rep.indx <- rep(0, n.samples)
+        rep.indx[1:n.samples %in% s.indx] <- 1
+    }
+    
+    storage.mode(n.rep) <- "integer"
+    storage.mode(rep.indx) <- "integer"
     
     ####################################################
     ##Other stuff
@@ -215,47 +348,104 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     ptm <- proc.time()
 
     nngp <- paste(substr(method,1,1),"NNGP",collapse="",sep="")
-    
-    out <- .Call(nngp, y, X, p, n, n.neighbors, coords, cov.model.indx,
-                 sigma.sq.IG, tau.sq.IG, phi.Unif, nu.Unif, 
-                 beta.starting, sigma.sq.starting, tau.sq.starting, phi.starting, nu.starting,
-                 sigma.sq.tuning, tau.sq.tuning, phi.tuning, nu.tuning,
-                 n.samples, search.type.indx, return.neighbors, n.omp.threads, verbose, n.report)
+
+    if(family == "gaussian"){
+
+        if(method == "response"){
+            
+            out <- .Call(nngp, y, X, p, n, n.neighbors, coords, cov.model.indx, nn.indx, nn.indx.lu, 
+                         sigma.sq.IG, tau.sq.IG, phi.Unif, nu.Unif, 
+                         beta.starting, sigma.sq.starting, tau.sq.starting, phi.starting, nu.starting,
+                         sigma.sq.tuning, tau.sq.tuning, phi.tuning, nu.tuning,
+                         n.samples, n.omp.threads, verbose, n.report, n.rep, rep.indx)
+            
+        }else{##sequential
+            
+            out <- .Call(nngp, y, X, p, n, n.neighbors, coords, cov.model.indx, nn.indx, nn.indx.lu, 
+                         sigma.sq.IG, tau.sq.IG, phi.Unif, nu.Unif, 
+                         beta.starting, sigma.sq.starting, tau.sq.starting, phi.starting, nu.starting,
+                         sigma.sq.tuning, tau.sq.tuning, phi.tuning, nu.tuning,
+                         n.samples, n.omp.threads, verbose, n.report)
+        }
+            
+        col.names <- c("sigma.sq", "tau.sq", "phi")
         
+        if(cov.model == "matern"){
+            col.names <- c("sigma.sq", "tau.sq", "phi", "nu")
+        }
+        
+    }else{
+        
+        out <- .Call("sNNGPLogit", y, X, p, n, n.neighbors, coords, weights, cov.model.indx, nn.indx, nn.indx.lu, 
+                     sigma.sq.IG, phi.Unif, nu.Unif, 
+                     beta.starting, sigma.sq.starting, phi.starting, nu.starting,
+                     sigma.sq.tuning, phi.tuning, nu.tuning,
+                     n.samples, n.omp.threads, verbose, n.report)
+        
+        col.names <- c("sigma.sq", "phi")
+        
+        if(cov.model == "matern"){
+            col.names <- c("sigma.sq", "phi", "nu")
+        }        
+    }
+
     out$run.time <- proc.time() - ptm
 
     out$p.theta.samples <- mcmc(t(out$p.theta.samples))
     out$p.beta.samples <- mcmc(t(out$p.beta.samples))
-
-    col.names <- c("sigma.sq", "tau.sq", "phi")
-    
-    if(cov.model == "matern"){
-        col.names <- c("sigma.sq", "tau.sq", "phi", "nu")
-    }
-    
+        
     colnames(out$p.theta.samples) <- col.names
     colnames(out$p.beta.samples) <- x.names
+    
+    if(return.neighbor.info || method == "response"){
+        out$neighbor.info <- list(n.neighbors = n.neighbors, n.indx=mk.n.indx.list(nn.indx, n, n.neighbors),
+                                  nn.indx=nn.indx, nn.indx.lu=nn.indx.lu, ord=ord)
+    }
+
+    ##put everthing back in the original order
+    out$coords <- coords[order(ord),]
+    out$y <- y[order(ord)]
+    out$X <- X[order(ord),,drop=FALSE]
+    out$weights <- weights[order(ord)]
 
     if(nngp == "sNNGP"){
-        out$p.w.samples.ord <- out$p.w.samples
-        out$p.w.samples <- out$p.w.samples[order(ord),]
+        out$p.w.samples <- out$p.w.samples[order(ord),,drop=FALSE]
     }
-    
-    out$ord <- ord
-    out$coords.ord <- coords
-    out$y.ord <- y
-    out$X.ord <- X
+
+    ##finish off the replicate and fitted values
+    if(fit.rep){
+        if(method == "response"){
+            out$y.hat.samples <- out$X%*%t(as.matrix(out$p.beta.samples)[s.indx,,drop=FALSE])
+            out$y.hat.quants <- t(apply(out$y.hat.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))           
+            out$y.rep.samples <- out$y.rep.samples[order(ord),,drop=FALSE]
+            out$y.rep.quants <- t(apply(out$y.rep.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))
+        }else{##sequential
+            out$y.hat.samples <- out$X%*%t(as.matrix(out$p.beta.samples)[s.indx,,drop=FALSE]) + out$p.w.samples[,s.indx,drop=FALSE]
+            out$y.hat.quants <- t(apply(out$y.hat.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))
+
+            if(family == "gaussian"){
+                out$y.rep.samples <- out$X%*%t(as.matrix(out$p.beta.samples)[s.indx,,drop=FALSE]) + out$p.w.samples[,s.indx,drop=FALSE] + sapply(out$p.theta.samples[s.indx,"tau.sq"], function(x) sqrt(x)*rnorm(n))
+                out$y.rep.quants <- t(apply(out$y.rep.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))
+            }else{##binomial
+                out$y.rep.samples <- apply(1/(1+exp(-out$y.hat.samples)), 2, function(x) rbinom(n, out$weights, x))
+                out$y.rep.quants <- t(apply(out$y.rep.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))
+            }
+            
+        }
+        out$sub.sample <- sub.sample
+        out$s.indx <- s.indx
+    }
     
     out$n.neighbors <- n.neighbors
     out$cov.model <- cov.model
     out$cov.model.indx <- cov.model.indx
-
-    if(return.neighbors){
-        out$n.indx <- mk.n.indx.list(out$n.indx, n, n.neighbors)
-    }
-
-    class(out) <- nngp
+    out$call <- cl
+    out$starting <- starting
+    out$priors <- priors
+    out$tuning <- tuning
     
+    class(out) <- c("NNGP", method, family)
+
     out
     
 }

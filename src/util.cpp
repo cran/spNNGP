@@ -60,38 +60,6 @@ void getNNIndx(int i, int m, int &iNNIndx, int &iNN){
   } 
 }
 
-void mkNNIndx(int n, int m, double *coords, int *nnIndx, double *nnDist, int *nnIndxLU){
-  
-  int i, j, iNNIndx, iNN;
-  double d;
-  
-  int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
-  
-  for(i = 0; i < nIndx; i++){
-    nnDist[i] = std::numeric_limits<double>::infinity();
-  }
-  
-#ifdef _OPENMP
-#pragma omp parallel for private(j, iNNIndx, iNN, d)
-#endif
-  for(i = 0; i < n; i++){
-    getNNIndx(i, m, iNNIndx, iNN);
-    nnIndxLU[i] = iNNIndx;
-    nnIndxLU[n+i] = iNN;   
-    if(i != 0){  
-      for(j = 0; j < i; j++){	
-	d = dist2(coords[i], coords[n+i], coords[j], coords[n+j]);	
-	if(d < nnDist[iNNIndx+iNN-1]){	  
-	  nnDist[iNNIndx+iNN-1] = d;
-	  nnIndx[iNNIndx+iNN-1] = j;
-	  rsort_with_index(&nnDist[iNNIndx], &nnIndx[iNNIndx], iNN);
-	}	
-      }
-    }
-  }
-  
-}
-
 void mkUIndx(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU){ 
   
   int iNNIndx, iNN, i, j, k, l, h;
@@ -202,159 +170,31 @@ double Q(double *B, double *F, double *u, double *v, int n, int *nnIndx, int *nn
   return(q);
 }
 
-//trees
-Node *miniInsert(Node *Tree, double *coords, int index, int d,int n){
 
-  int P = 2;
-  
-  if(Tree==NULL){
-    return new Node(index);
-  }
-  
-  if(coords[index]<=coords[Tree->index]&&d==0){
-    Tree->left=miniInsert(Tree->left,coords,index,(d+1)%P,n);
-  }
-  
-  if(coords[index]>coords[Tree->index]&&d==0){ 
-    Tree->right=miniInsert(Tree->right,coords,index,(d+1)%P,n);
-  }
-  
-  if(coords[index+n]<=coords[Tree->index+n]&&d==1){
-    Tree->left=miniInsert(Tree->left,coords,index,(d+1)%P,n);
-  }
-  
-  if(coords[index+n]>coords[Tree->index+n]&&d==1){ 
-    Tree->right=miniInsert(Tree->right,coords,index,(d+1)%P,n);
-  }
-  
-  return Tree;
-}
+void printMtrx(double *m, int nRow, int nCol){
 
-void get_nn(Node *Tree, int index, int d, double *coords, int n, double *nnDist, int *nnIndx, int iNNIndx, int iNN, int check){
+  int i, j;
 
-  int P = 2;
-  
-  if(Tree==NULL){
-    return;
-  }
-  
-  double disttemp= dist2(coords[index],coords[index+n],coords[Tree->index],coords[Tree->index+n]); 
-  
-  if(index!=Tree->index && disttemp<nnDist[iNNIndx+iNN-1]){
-    nnDist[iNNIndx+iNN-1]=disttemp;
-    nnIndx[iNNIndx+iNN-1]=Tree->index;
-    //fSort(&nnDist[iNNIndx], &nnIndx[iNNIndx], iNN);
-    rsort_with_index(&nnDist[iNNIndx], &nnIndx[iNNIndx], iNN);
-  }
-  
-  Node *temp1=Tree->left;
-  Node *temp2=Tree->right;
-  
-  if(d==0){
-    
-    if(coords[index]>coords[Tree->index]){
-      std::swap(temp1,temp2);
+  for(i = 0; i < nRow; i++){
+    Rprintf("\t");
+    for(j = 0; j < nCol; j++){
+      Rprintf("%.10f\t", m[j*nRow+i]);
     }
-    
-    get_nn(temp1,index,(d+1)%P,coords,n, nnDist, nnIndx, iNNIndx, iNN, check);
-    
-    if(fabs(coords[Tree->index]-coords[index])>nnDist[iNNIndx+iNN-1]){
-      return;
-    }
-    
-    get_nn(temp2,index,(d+1)%P,coords,n, nnDist, nnIndx, iNNIndx, iNN, check);
+    Rprintf("\n");
   }
-  
-  if(d==1){
-    
-    if(coords[index+n]>coords[Tree->index+n]){
-      std::swap(temp1,temp2);
-    }
-    
-    get_nn(temp1,index,(d+1)%P,coords,n, nnDist, nnIndx, iNNIndx, iNN,check);
-
-    if(fabs(coords[Tree->index+n]-coords[index+n])>nnDist[iNNIndx+iNN-1]){
-      return;
-    }
-    
-    get_nn(temp2,index,(d+1)%P,coords,n, nnDist, nnIndx, iNNIndx, iNN,check);
-  }
-
 }
 
 
-void mkNNIndxTree0(int n, int m, double *coords, int *nnIndx, double *nnDist, int *nnIndxLU){
-  
-  int i, iNNIndx, iNN;
-  double d;
-  int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
-  int BUCKETSIZE = 10;
+void printMtrxInt(int *m, int nRow, int nCol){
 
-  
-  for(i = 0; i < nIndx; i++){
-    nnDist[i] = std::numeric_limits<double>::infinity();
-  }
-  
-  Node *Tree=NULL;
-  int time_through=-1;
-  
-  for(i=0;i<n;i++){
-    getNNIndx(i, m, iNNIndx, iNN);
-    nnIndxLU[i] = iNNIndx;
-    nnIndxLU[n+i] = iNN;
-    if(time_through==-1){
-      time_through=i;
-    }
-    
-    if(i!=0){
-      for(int j = time_through; j < i; j++){ 
-	getNNIndx(i, m, iNNIndx, iNN);
-	d = dist2(coords[i], coords[i+n], coords[j], coords[n+j]);
-	if(d < nnDist[iNNIndx+iNN-1]){
-	  nnDist[iNNIndx+iNN-1] = d;
-	  nnIndx[iNNIndx+iNN-1] = j;
-	  
-	  //fSort(&nnDist[iNNIndx], &nnIndx[iNNIndx], iNN);
-	  rsort_with_index(&nnDist[iNNIndx], &nnIndx[iNNIndx], iNN);
-	}
-      }
-      
-      
-      if(i%BUCKETSIZE==0){
+  int i, j;
 
-#ifdef _OPENMP	
-#pragma omp parallel for private(iNNIndx, iNN)
-#endif  
-	for(int j=time_through;j<time_through+BUCKETSIZE;j++){
-	  
-	  getNNIndx(j, m, iNNIndx, iNN);
-	  get_nn(Tree,j,0, coords,n, nnDist,nnIndx,iNNIndx,iNN,i-BUCKETSIZE);
-	}
-	
-	
-	for(int j=time_through;j<time_through+BUCKETSIZE;j++){
-	  Tree=miniInsert(Tree,coords,j,0, n);
-	}
-	
-	time_through=-1;
-      }
-      if(i==n-1){
-	
-#ifdef _OPENMP
-#pragma omp parallel for private(iNNIndx, iNN)
-#endif  
-	for(int j=time_through;j<n;j++){
-	  getNNIndx(j, m, iNNIndx, iNN);
-	  get_nn(Tree,j,0, coords,n, nnDist,nnIndx,iNNIndx,iNN,i-BUCKETSIZE);
-	}
-	
-      }
-    } 
-    if(i==0){
-      Tree=miniInsert(Tree,coords,i,0,n);
-      time_through=-1;
+  for(i = 0; i < nRow; i++){
+    Rprintf("\t");
+    for(j = 0; j < nCol; j++){
+      Rprintf("%i\t", m[j*nRow+i]);
     }
+    Rprintf("\n");
   }
 
-  delete Tree;
 }

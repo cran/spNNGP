@@ -14,7 +14,7 @@
 extern "C" {
 
   SEXP sNNGPPredict(SEXP X_r, SEXP y_r, SEXP coords_r, SEXP n_r, SEXP p_r, SEXP m_r, SEXP X0_r, SEXP coords0_r, SEXP q_r, SEXP nnIndx0_r, 
-		    SEXP betaSamples_r, SEXP thetaSamples_r, SEXP wSamples_r, SEXP nSamples_r, SEXP covModel_r, SEXP nThreads_r, SEXP verbose_r, SEXP nReport_r){
+		    SEXP betaSamples_r, SEXP thetaSamples_r, SEXP wSamples_r, SEXP nSamples_r, SEXP family_r, SEXP covModel_r, SEXP nThreads_r, SEXP verbose_r, SEXP nReport_r){
 
     int h, i, j, k, l, s, info, nProtect=0;
     const int inc = 1;
@@ -47,6 +47,7 @@ extern "C" {
     double *w = REAL(wSamples_r);
     
     int nSamples = INTEGER(nSamples_r)[0];
+    int family = INTEGER(family_r)[0];
     int covModel = INTEGER(covModel_r)[0];
     std::string corName = getCorName(covModel);
     int nThreads = INTEGER(nThreads_r)[0];
@@ -81,15 +82,25 @@ extern "C" {
     
     //parameters
     int nTheta, sigmaSqIndx, tauSqIndx, phiIndx, nuIndx;
-    
-    if(corName != "matern"){
-      nTheta = 3;//sigma^2, tau^2, phi
-      sigmaSqIndx = 0; tauSqIndx = 1; phiIndx = 2;
-    }else{
-      nTheta = 4;//sigma^2, tau^2, phi, nu
-      sigmaSqIndx = 0; tauSqIndx = 1; phiIndx = 2; nuIndx = 3;
-    }
 
+    if(family == 1){
+      if(corName != "matern"){
+	nTheta = 3;//sigma^2, tau^2, phi
+	sigmaSqIndx = 0; tauSqIndx = 1; phiIndx = 2;
+      }else{
+	nTheta = 4;//sigma^2, tau^2, phi, nu
+	sigmaSqIndx = 0; tauSqIndx = 1; phiIndx = 2; nuIndx = 3;
+      }
+    }else{//family is binomial
+      if(corName != "matern"){
+	nTheta = 2;//sigma^2, phi
+	sigmaSqIndx = 0; phiIndx = 1;
+      }else{
+	nTheta = 3;//sigma^2, phi, nu
+	sigmaSqIndx = 0; phiIndx = 1; nuIndx = 2;
+      }
+    }
+    
     //get max nu
     double nuMax = 0;
     int nb = 0;
@@ -112,12 +123,12 @@ extern "C" {
     double phi = 0, nu = 0, sigmaSq = 0, tauSq = 0, d;
     int threadID = 0, status = 0;
 
-    SEXP w0_r, y0_r;
-    PROTECT(w0_r = allocMatrix(REALSXP, q, nSamples)); nProtect++;
+    SEXP y0_r, w0_r;
     PROTECT(y0_r = allocMatrix(REALSXP, q, nSamples)); nProtect++; 
-    double *w0 = REAL(w0_r);
+    PROTECT(w0_r = allocMatrix(REALSXP, q, nSamples)); nProtect++;
     double *y0 = REAL(y0_r);
-
+    double *w0 = REAL(w0_r);
+ 
     if(verbose){
       Rprintf("-------------------------------------------------\n");
       Rprintf("\t\tPredicting\n");
@@ -127,12 +138,26 @@ extern "C" {
       #endif
     }
 
-    double *z = (double *) R_alloc(2*q*nSamples, sizeof(double));
     int zIndx = 0;
-    GetRNGstate();
-    for(i = 0; i < 2*q*nSamples; i++){
-      z[i] = rnorm(0.0,1.0);
+    double *wZ = (double *) R_alloc(q*nSamples, sizeof(double));
+
+    double *yZ = NULL;
+    if(family == 1){
+      yZ = (double *) R_alloc(q*nSamples, sizeof(double));
     }
+    
+    GetRNGstate();
+    
+    for(i = 0; i < q*nSamples; i++){
+      wZ[i] = rnorm(0.0,1.0);
+    }
+    
+    if(family == 1){
+      for(i = 0; i < q*nSamples; i++){
+	yZ[i] = rnorm(0.0,1.0);
+      }
+    }
+    
     PutRNGstate();
 
     for(i = 0; i < q; i++){
@@ -148,7 +173,10 @@ extern "C" {
 	  nu = theta[s*nTheta+nuIndx];
 	}
 	sigmaSq = theta[s*nTheta+sigmaSqIndx];
-	tauSq = theta[s*nTheta+tauSqIndx];
+
+	if(family == 1){
+	  tauSq = theta[s*nTheta+tauSqIndx];
+	}
 	
 	for(k = 0; k < m; k++){
 	  d = dist2(coords[nnIndx0[i+q*k]], coords[n+nnIndx0[i+q*k]], coords0[i], coords0[q+i]);
@@ -169,10 +197,14 @@ extern "C" {
 	  d += tmp_m[threadID*m+k]*w[s*n+nnIndx0[i+q*k]];
 	}
 
-	w0[s*q+i] = sqrt(sigmaSq - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*z[zIndx] + d;
-	zIndx++;
+	w0[s*q+i] = sqrt(sigmaSq - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*wZ[zIndx] + d;
+
+	if(family == 1){
+	  y0[s*q+i] = sqrt(tauSq)*yZ[zIndx] + F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + w0[s*q+i];
+	}else{//binomial
+	   y0[s*q+i] = F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + w0[s*q+i];
+	}
 	
-	y0[s*q+i] = sqrt(tauSq)*z[zIndx] + F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + w0[s*q+i];
 	zIndx++;
       }
       

@@ -5,11 +5,15 @@
 #include "spNNGP.h"
 
 static const R_CallMethodDef CallEntries[] = {
-    {"rNNGP", (DL_FUNC) &rNNGP, 24},
-    {"sNNGP", (DL_FUNC) &rNNGP, 24},
-    {"cNNGP", (DL_FUNC) &cNNGP, 16},
-    {"rNNGPPredict", (DL_FUNC) &cNNGP, 17},
-    {"sNNGPPredict", (DL_FUNC) &cNNGP, 18},
+    {"rNNGP", (DL_FUNC) &rNNGP, 28},
+    {"sNNGP", (DL_FUNC) &sNNGP, 26},
+    {"sNNGPLogit", (DL_FUNC) &sNNGPLogit, 24},
+    {"cNNGP", (DL_FUNC) &cNNGP, 18},
+    {"cSLGP", (DL_FUNC) &cSLGP, 21},
+    {"rNNGPPredict", (DL_FUNC) &rNNGPPredict, 17},
+    {"sNNGPPredict", (DL_FUNC) &sNNGPPredict, 19},
+    {"PGLogit", (DL_FUNC) &PGLogit, 9},
+    {"rNNGPReplicated", (DL_FUNC) &rNNGPReplicated, 14},
     {NULL, NULL, 0}
 };
 

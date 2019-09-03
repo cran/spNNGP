@@ -6,13 +6,14 @@
 #include <R_ext/Lapack.h>
 #include <R_ext/BLAS.h>
 #include "util.h"
+#include "rpg.h"
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
 //Description: update B and F.
-void updateBF(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double sigmaSq, double phi, double nu, int covModel, double *bk, double nuUnifb){
+void updateBF1(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double sigmaSq, double phi, double nu, int covModel, double *bk, double nuUnifb){
     
   int i, k, l;
   int info = 0;
@@ -57,11 +58,11 @@ void updateBF(double *B, double *F, double *c, double *C, double *coords, int *n
 
 extern "C" {
   
-  SEXP sNNGP(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP m_r, SEXP coords_r, SEXP covModel_r, SEXP nnIndx_r, SEXP nnIndxLU_r,
-	     SEXP sigmaSqIG_r, SEXP tauSqIG_r, SEXP phiUnif_r, SEXP nuUnif_r, 
-	     SEXP betaStarting_r, SEXP sigmaSqStarting_r, SEXP tauSqStarting_r, SEXP phiStarting_r, SEXP nuStarting_r,
-	     SEXP sigmaSqTuning_r, SEXP tauSqTuning_r, SEXP phiTuning_r, SEXP nuTuning_r, 
-	     SEXP nSamples_r, SEXP nThreads_r, SEXP verbose_r, SEXP nReport_r){
+  SEXP sNNGPLogit(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP m_r, SEXP coords_r, SEXP nTrial_r, SEXP covModel_r, SEXP nnIndx_r, SEXP nnIndxLU_r,
+		  SEXP sigmaSqIG_r, SEXP phiUnif_r, SEXP nuUnif_r, 
+		  SEXP betaStarting_r, SEXP sigmaSqStarting_r, SEXP phiStarting_r, SEXP nuStarting_r,
+		  SEXP sigmaSqTuning_r, SEXP phiTuning_r, SEXP nuTuning_r, 
+		  SEXP nSamples_r, SEXP nThreads_r, SEXP verbose_r, SEXP nReport_r){
     
     int h, i, j, k, l, s, info, nProtect=0;
     const int inc = 1;
@@ -81,7 +82,9 @@ extern "C" {
     int p = INTEGER(p_r)[0];
     int n = INTEGER(n_r)[0];
     int m = INTEGER(m_r)[0];
+    int np = n*p;
     double *coords = REAL(coords_r);
+    int *nTrial = INTEGER(nTrial_r);
     int *nnIndx = INTEGER(nnIndx_r);
     int *nnIndxLU = INTEGER(nnIndxLU_r);
     int covModel = INTEGER(covModel_r)[0];
@@ -89,7 +92,6 @@ extern "C" {
         
     //priors
     double sigmaSqIGa = REAL(sigmaSqIG_r)[0]; double sigmaSqIGb = REAL(sigmaSqIG_r)[1];
-    double tauSqIGa = REAL(tauSqIG_r)[0]; double tauSqIGb = REAL(tauSqIG_r)[1]; 
     double phiUnifa = REAL(phiUnif_r)[0]; double phiUnifb = REAL(phiUnif_r)[1];
     
     double nuUnifa = 0, nuUnifb = 0;
@@ -123,7 +125,6 @@ extern "C" {
       Rprintf("Priors and hyperpriors:\n");
       Rprintf("\tbeta flat.\n");
       Rprintf("\tsigma.sq IG hyperpriors shape=%.5f and scale=%.5f\n", sigmaSqIGa, sigmaSqIGb);
-      Rprintf("\ttau.sq IG hyperpriors shape=%.5f and scale=%.5f\n", tauSqIGa, tauSqIGb); 
       Rprintf("\tphi Unif hyperpriors a=%.5f and b=%.5f\n", phiUnifa, phiUnifb);
       if(corName == "matern"){
 	Rprintf("\tnu Unif hyperpriors a=%.5f and b=%.5f\n", nuUnifa, nuUnifb);	  
@@ -136,14 +137,14 @@ extern "C" {
     } 
     
     //parameters
-    int nTheta, sigmaSqIndx, tauSqIndx, phiIndx, nuIndx;
+    int nTheta, sigmaSqIndx, phiIndx, nuIndx;
     
     if(corName != "matern"){
-      nTheta = 3;//sigma^2, tau^2, phi
-      sigmaSqIndx = 0; tauSqIndx = 1; phiIndx = 2;
+      nTheta = 2;//sigma^2, phi
+      sigmaSqIndx = 0; phiIndx = 1;
     }else{
-      nTheta = 4;//sigma^2, tau^2, phi, nu
-      sigmaSqIndx = 0; tauSqIndx = 1; phiIndx = 2; nuIndx = 3;
+      nTheta = 3;//sigma^2, phi, nu
+      sigmaSqIndx = 0; phiIndx = 1; nuIndx = 2;
     }
     
     //starting	
@@ -153,17 +154,21 @@ extern "C" {
     F77_NAME(dcopy)(&p, REAL(betaStarting_r), &inc, beta, &inc);
     
     theta[sigmaSqIndx] = REAL(sigmaSqStarting_r)[0];
-    theta[tauSqIndx] = REAL(tauSqStarting_r)[0];
     theta[phiIndx] = REAL(phiStarting_r)[0];
     if(corName == "matern"){
       theta[nuIndx] = REAL(nuStarting_r)[0];
     }
-    
+
+    //aug parameter
+    double *omega = (double *) R_alloc(n, sizeof(double));
+    double *kappa = (double *) R_alloc(n, sizeof(double));
+    double *yStr = (double *) R_alloc(n, sizeof(double));
+    double *w = (double *) R_alloc(n, sizeof(double)); zeros(w, n);
+
     //tuning and fixed
     double *tuning = (double *) R_alloc(nTheta, sizeof(double));
     
     tuning[sigmaSqIndx] = 0; //not accessed
-    tuning[tauSqIndx] = 0; //not accessed  
     tuning[phiIndx] = REAL(phiTuning_r)[0];
     
     if(corName == "matern"){
@@ -221,14 +226,11 @@ extern "C" {
     double *tmp_p = (double *) R_alloc(p, sizeof(double));
     double *tmp_p2 = (double *) R_alloc(p, sizeof(double));
     double *tmp_n = (double *) R_alloc(n, sizeof(double)); zeros(tmp_n, n);
-    double *XtX = (double *) R_alloc(pp, sizeof(double));
-    double *w = (double *) R_alloc(n, sizeof(double)); zeros(w, n);
+    double *tmp_np = (double *) R_alloc(np, sizeof(double));
     double a, v, b, e, mu, var, aij, phiCand, nuCand = 0, nu = 0;
 
     double *bk = (double *) R_alloc(nThreads*(1.0+static_cast<int>(floor(nuUnifb))), sizeof(double));
     
-    F77_NAME(dgemm)(ytran, ntran, &p, &p, &n, &one, X, &n, X, &n, &zero, XtX, &p);
-
     if(verbose){
       Rprintf("----------------------------------------\n");
       Rprintf("\t\tSampling\n");
@@ -239,11 +241,46 @@ extern "C" {
     }
 
     if(corName == "matern"){nu = theta[nuIndx];}
-    updateBF(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb);
-      
+    updateBF1(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb);
+    
+    for(i = 0; i < n; i++){
+      kappa[i] = y[i] - static_cast<double>(nTrial[i])/2.0;
+    }
+    
     GetRNGstate();
     
     for(s = 0; s < nSamples; s++){
+
+      ///////////////
+      //update augs
+      ///////////////     
+      for(i = 0; i < n; i++){
+	omega[i] = rpg(nTrial[i], F77_NAME(ddot)(&p, &X[i], &n, beta, &inc) + w[i]);
+	yStr[i] = kappa[i]/omega[i];
+      }
+           
+      ///////////////
+      //update beta 
+      ///////////////
+      for(i = 0; i < n; i++){
+	tmp_n[i] = (yStr[i] - w[i])*omega[i];
+      }
+      F77_NAME(dgemv)(ytran, &n, &p, &one, X, &n, tmp_n, &inc, &zero, tmp_p, &inc); 	  
+
+      
+      for(i = 0; i < n; i++){
+	for(j = 0; j < p; j++){
+	  tmp_np[j*n+i] = X[j*n+i]*omega[i];
+	}
+      }
+
+      F77_NAME(dgemm)(ytran, ntran, &p, &p, &n, &one, X, &n, tmp_np, &n, &zero, tmp_pp, &p);
+
+      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotrf here failed\n");}
+      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotri here failed\n");}
+      F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, tmp_p2, &inc);
+      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotrf here failed\n");}
+      mvrnorm(beta, tmp_p2, tmp_pp, p);
 
       ///////////////
       //update w 
@@ -272,39 +309,14 @@ extern "C" {
 	for(j = 0; j < nnIndxLU[n+i]; j++){
 	  e += B[nnIndxLU[i]+j]*w[nnIndx[nnIndxLU[i]+j]];
 	}
-	mu = (y[i] - F77_NAME(ddot)(&p, &X[i], &n, beta, &inc))/theta[tauSqIndx] + e/F[i] + a;
 	
-	var = 1.0/(1.0/theta[tauSqIndx] + 1.0/F[i] + v);
+	mu = (yStr[i] - F77_NAME(ddot)(&p, &X[i], &n, beta, &inc))*omega[i] + e/F[i] + a;
+	
+	var = 1.0/(omega[i] + 1.0/F[i] + v);
+	
 	w[i] = rnorm(mu*var, sqrt(var));
       }
       
-      ///////////////
-      //update beta 
-      ///////////////
-      for(i = 0; i < n; i++){
-	tmp_n[i] = (y[i] - w[i])/theta[tauSqIndx];
-      }
-      F77_NAME(dgemv)(ytran, &n, &p, &one, X, &n, tmp_n, &inc, &zero, tmp_p, &inc); 	  
-      
-      for(i = 0; i < pp; i++){
-	tmp_pp[i] = XtX[i]/theta[tauSqIndx];
-      }
-      
-      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotri failed\n");}
-      F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, tmp_p2, &inc);
-      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-      mvrnorm(beta, tmp_p2, tmp_pp, p);
-      
-      /////////////////////
-      //update tau^2
-      /////////////////////
-      for(i = 0; i < n; i++){
-	tmp_n[i] = y[i] - w[i] - F77_NAME(ddot)(&p, &X[i], &n, beta, &inc);
-      }
-      
-      theta[tauSqIndx] = 1.0/rgamma(tauSqIGa+n/2.0, 1.0/(tauSqIGb+0.5*F77_NAME(ddot)(&n, tmp_n, &inc, tmp_n, &inc)));
-
       /////////////////////
       //update sigma^2
       /////////////////////
@@ -333,7 +345,7 @@ extern "C" {
       ///////////////
       //current
       if(corName == "matern"){nu = theta[nuIndx];}
-      updateBF(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb);
+      updateBF1(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb);
       
       a = 0;
       logDet = 0;
@@ -368,8 +380,8 @@ extern "C" {
       	nuCand = logitInv(rnorm(logit(theta[nuIndx], nuUnifa, nuUnifb), tuning[nuIndx]), nuUnifa, nuUnifb);
       }
       
-      updateBF(BCand, FCand, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], phiCand, nuCand, covModel, bk, nuUnifb);
-            
+      updateBF1(BCand, FCand, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], phiCand, nuCand, covModel, bk, nuUnifb);
+      
       a = 0;
       logDet = 0;
       
@@ -452,7 +464,7 @@ extern "C" {
 
     SET_VECTOR_ELT(result_r, 2, wSamples_r);
     SET_VECTOR_ELT(resultName_r, 2, mkChar("p.w.samples"));
-	
+
     namesgets(result_r, resultName_r);
     
     //unprotect

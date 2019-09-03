@@ -14,7 +14,7 @@ parseFormula <-  function(formula, data, intercept=TRUE, justX=FALSE){
     }
 
     # null model support
-    X <- if (!is.empty.model(mt)) model.matrix(mt, mf, contrasts)
+    X <- if (!is.empty.model(mt)) model.matrix(mt, mf)
     X <- as.matrix(X)         # X matrix
     xvars <- dimnames(X)[[2]] # X variable names
     xobs  <- dimnames(X)[[1]] # X observation names

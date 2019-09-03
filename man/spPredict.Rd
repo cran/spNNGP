@@ -1,34 +1,37 @@
 \name{spPredict}
 \alias{spPredict}
-\title{Function for prediction at new locations using \code{spNNGP} models.}
+\title{Function for prediction at new locations using \code{NNGP} models.}
 
 \description{
   The function \code{spPredict} collects posterior predictive samples
-  for a set of new locations given a \code{\link{spNNGP}} object.
+  for a set of new locations given an object of
+  class \code{NNGP}.
 }
 
 \usage{
-spPredict(sp.obj, X.0, coords.0, start=1, end, thin=1, n.omp.threads = 1,
+spPredict(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1,
           verbose=TRUE, n.report=100, ...)
 }
 
 \arguments{
-  \item{sp.obj}{an object returned by \code{\link{spNNGP}}. }
+  \item{sp.obj}{an object of class \code{NNGP}. }
   \item{X.0}{the design matrix for prediction locations. An
     intercept should be provided in the first column if one is specified
     in \code{sp.obj} model.}
   \item{coords.0}{the spatial coordinates corresponding to
     \code{X.0}. }
-  \item{start}{specifies the first sample included in the composition sampling.}
-  \item{end}{specifies the last sample included in the composition.
-    The default is to use all posterior samples in \code{sp.obj}. }
-  \item{thin}{a sample thinning factor.  The default of 1 considers all
-    samples between \code{start} and \code{end}.  For example, if \code{thin = 10} then 1 in 10 samples are considered between \code{start} and
-    \code{end}. }
+  \item{sub.sample}{an optional list that specifies the samples to included in
+    the composition sampling a non-Conjugate model. Valid tags are \code{start},
+    \code{end}, and \code{thin}. Given the value associated with the tags,
+    the sample subset is selected using \code{seq(as.integer(start),
+      as.integer(end), by=as.integer(thin))}. The default values are
+    \code{start=floor(0.5*n.samples)}, \code{end=n.samples} and
+    \code{thin=1}.}  
   \item{n.omp.threads}{a positive integer indicating
     the number of threads to use for SMP parallel processing. The package must
     be compiled for OpenMP support. For most Intel-based machines, we recommend setting
-    \code{n.omp.threads} up to the number of hyperthreaded cores.}
+    \code{n.omp.threads} up to the number of hyperthreaded cores. Note, \code{n.omp.threads} > 1 might not
+    work on some systems.}
   \item{verbose}{if \code{TRUE}, model specification and progress of the
     sampler is printed to the screen. Otherwise, nothing is printed to
     the screen.  }
@@ -37,26 +40,27 @@ spPredict(sp.obj, X.0, coords.0, start=1, end, thin=1, n.omp.threads = 1,
 }
 
 \value{
-  A list comprising:
+  An object of class \code{spPredict} which is a list comprising:
   \item{p.y.0}{a matrix that holds the response variable posterior
     predictive samples where rows are locations corresponding to
   \code{coords.0} and columns are samples. }
   \item{p.w.0}{a matrix that holds the random effect posterior
     predictive samples where rows are locations corresponding to
-  \code{coords.0} and columns are samples. This is only returned if \code{\link{spNNGP}} \code{method = "sequential".}}
+  \code{coords.0} and columns are samples. This is only returned if the
+  input class has \code{method = "sequential".}}
 \item{run.time}{execution time reported using \code{proc.time()}.}
 }
 
 \references{
-  Datta, A., S. Banerjee, A.O. Finley, and A.E. Gelfand. (2016)
+   Datta, A., S. Banerjee, A.O. Finley, and A.E. Gelfand. (2016)
   Hierarchical Nearest-Neighbor Gaussian process models for large
-  geostatistical datasets. Journal of the American Statistical
-  Association, 111:800-812.
-  
-  Finley, A.O., A. Datta, B.C. Cook, D.C. Morton, H.E. Andersen, and
-  S. Banerjee (2017) Applying Nearest Neighbor Gaussian Processes to
-  massive spatial data sets: Forest canopy height prediction across
-  Tanana Valley Alaska, \url{https://arxiv.org/abs/1702.00434v2}.
+  geostatistical datasets. \emph{Journal of the American Statistical
+  Association}, 111:800-812.
+
+  Finley, A.O., A. Datta, B.D. Cook, D.C. Morton, H.E. Andersen, and
+  S. Banerjee. (2019) Efficient algorithms for Bayesian Nearest Neighbor
+  Gaussian Processes. \emph{Jurnal of Computational and Graphical
+  Statistics}, \url{https://doi.org/10.1080/10618600.2018.1537924}.
 }
 
 \author{
@@ -105,7 +109,7 @@ x <- x[-ho,,drop=FALSE]
 w <- w[-ho,,drop=FALSE]
 coords <- coords[-ho,]
 
-##Fit a Response and Sequential NNGP model
+##Fit a response, sequential, and conjugate NNGP model
 n.samples <- 500
 
 starting <- list("phi"=phi, "sigma.sq"=5, "tau.sq"=1)
@@ -118,24 +122,36 @@ cov.model <- "exponential"
 
 n.report <- 500
 
-##Predict for holdout set using both models
+##Sequential
 m.s <- spNNGP(y~x-1, coords=coords, starting=starting, method="sequential", n.neighbors=10,
               tuning=tuning, priors=priors, cov.model=cov.model,
-              n.samples=n.samples, n.omp.threads=2, n.report=n.report)
+              n.samples=n.samples, n.omp.threads=1, n.report=n.report)
 
-m.r <- spNNGP(y~x-1, coords=coords, starting=starting, method="response", n.neighbors=10,
-              tuning=tuning, priors=priors, cov.model=cov.model,
-              n.samples=n.samples, n.omp.threads=2, n.report=n.report)
-
-##Prediction for holdout data
-p.s <- spPredict(m.s, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=2)
+p.s <- spPredict(m.s, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
 
 plot(apply(p.s$p.w.0, 1, mean), w.ho)
 plot(apply(p.s$p.y.0, 1, mean), y.ho)
 
-p.r <- spPredict(m.r, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=2)
+##Response
+m.r <- spNNGP(y~x-1, coords=coords, starting=starting, method="response", n.neighbors=10,
+              tuning=tuning, priors=priors, cov.model=cov.model,
+              n.samples=n.samples, n.omp.threads=1, n.report=n.report)
+
+p.r <- spPredict(m.r, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
 
 points(apply(p.r$p.y.0, 1, mean), y.ho, pch=19, col="blue")
+
+##Conjugate
+theta.alpha <- c(phi, tau.sq/sigma.sq)
+names(theta.alpha) <- c("phi", "alpha")
+
+m.c <- spConjNNGP(y~x-1, coords=coords, n.neighbors=10,
+                  theta.alpha=theta.alpha, sigma.sq.IG=c(2, sigma.sq),
+                  cov.model=cov.model, n.omp.threads=1)
+
+p.c <- spPredict(m.c, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
+
+points(p.c$y.0.hat, y.ho, pch=19, col="orange")
 
 }
 
