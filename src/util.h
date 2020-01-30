@@ -22,7 +22,10 @@ void getNNIndx(int i, int m, int &iNNIndx, int &iNN);
 //uIndx = holds the indexes for locations that have each location as a neighbor
 //uIndxLU = nx2 look-up matrix with row values correspond to each location's index in uIndx and number of neighbors (columns 1 and 2, respectively)
 //Note: uIndx must be of length (1+m)/2*m+(n-m-1)*m on input. uINdxLU must also be allocated on input.
-void mkUIndx(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU);
+void mkUIndx0(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU);
+void mkUIndx1(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU);
+void mkUIndx2(int n, int m, int* nnIndx, int *nnIndxLU, int* uIndx, int* uIndxLU);
+void crs_csc(int n, int *i_A, int *j_A, int *i_B, int *j_B);
 
 std::string getCorName(int i);
 

@@ -33,7 +33,7 @@ spNNGP(formula, data = parent.frame(), coords, method = "response",
   
   \item{method}{a quoted keyword that specifies the NNGP sampling
     algorithm. Supported method keywords are: \code{"response"} and
-    \code{"sequential"}. When \eqn{n}{n} is large, the \code{"response"}
+    \code{"latent"}. When \eqn{n}{n} is large, the \code{"response"}
     algorithm should be faster and provide finer control over Metropolis
     acceptance rate for covariance parameters. In general,
     unless estimates of spatial random effects are needed, the
@@ -60,7 +60,7 @@ spNNGP(formula, data = parent.frame(), coords, method = "response",
   
   \item{tuning}{a list with each tag corresponding to a parameter
     name. Valid tags are \code{sigma.sq}, \code{tau.sq}, \code{phi}, and
-    \code{nu}. If \code{method="sequential"} then only \code{phi} and
+    \code{nu}. If \code{method="latent"} then only \code{phi} and
     \code{nu} need to be specified. The value portion of each tag defines
     the variance of the Metropolis sampler Normal proposal distribution. }
   
@@ -161,7 +161,7 @@ spNNGP(formula, data = parent.frame(), coords, method = "response",
     covariance parameters. }
   
   \item{p.w.samples}{is a matrix of posterior samples for the spatial
-    random effects, where rows correspond to locations in \code{coords} and columns hold the \code{n.samples} posterior samples. This is only returned if \code{method="sequential"}.}
+    random effects, where rows correspond to locations in \code{coords} and columns hold the \code{n.samples} posterior samples. This is only returned if \code{method="latent"}.}
 
   \item{y.hat.samples}{if \code{fit.rep=TRUE}, regression fitted values from posterior samples
     specified using \code{sub.sample}. See additional details below. }
@@ -241,7 +241,7 @@ R <- exp(-phi*D)
 w <- rmvn(1, rep(0,n), sigma.sq*R)
 y <- rnorm(n, x\%*\%B + w, sqrt(tau.sq))
 
-##Fit a Response and Sequential NNGP model
+##Fit a Response and Latent NNGP model
 n.samples <- 500
 
 starting <- list("phi"=phi, "sigma.sq"=5, "tau.sq"=1)
@@ -252,7 +252,7 @@ priors <- list("phi.Unif"=c(3/1, 3/0.01), "sigma.sq.IG"=c(2, 5), "tau.sq.IG"=c(2
 
 cov.model <- "exponential"
 
-m.s <- spNNGP(y~x-1, coords=coords, starting=starting, method="sequential", n.neighbors=10,
+m.s <- spNNGP(y~x-1, coords=coords, starting=starting, method="latent", n.neighbors=10,
               tuning=tuning, priors=priors, cov.model=cov.model,
               n.samples=n.samples, n.omp.threads=1)
 

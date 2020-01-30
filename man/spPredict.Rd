@@ -47,7 +47,7 @@ spPredict(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1,
   \item{p.w.0}{a matrix that holds the random effect posterior
     predictive samples where rows are locations corresponding to
   \code{coords.0} and columns are samples. This is only returned if the
-  input class has \code{method = "sequential".}}
+  input class has \code{method = "latent".}}
 \item{run.time}{execution time reported using \code{proc.time()}.}
 }
 
@@ -109,7 +109,7 @@ x <- x[-ho,,drop=FALSE]
 w <- w[-ho,,drop=FALSE]
 coords <- coords[-ho,]
 
-##Fit a response, sequential, and conjugate NNGP model
+##Fit a Response, Latent, and Conjugate NNGP model
 n.samples <- 500
 
 starting <- list("phi"=phi, "sigma.sq"=5, "tau.sq"=1)
@@ -122,8 +122,8 @@ cov.model <- "exponential"
 
 n.report <- 500
 
-##Sequential
-m.s <- spNNGP(y~x-1, coords=coords, starting=starting, method="sequential", n.neighbors=10,
+##Latent
+m.s <- spNNGP(y~x-1, coords=coords, starting=starting, method="latent", n.neighbors=10,
               tuning=tuning, priors=priors, cov.model=cov.model,
               n.samples=n.samples, n.omp.threads=1, n.report=n.report)
 

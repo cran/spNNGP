@@ -67,7 +67,7 @@ extern "C" {
       Rprintf("----------------------------------------\n");
       Rprintf("\tPrediction description\n");
       Rprintf("----------------------------------------\n");
-      Rprintf("NNGP Sequential model fit with %i observations.\n\n", n);
+      Rprintf("NNGP Latent model fit with %i observations.\n\n", n);
       Rprintf("Number of covariates %i (including intercept if specified).\n\n", p);
       Rprintf("Using the %s spatial correlation model.\n\n", corName.c_str());
       Rprintf("Using %i nearest neighbors.\n\n", m);

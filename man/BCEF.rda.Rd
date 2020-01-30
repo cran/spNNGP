@@ -44,8 +44,4 @@ Forest Cover Change, Science, 342, 850-853.
   latitude, FCH, PTC, and holdout. 
 }
 
-\seealso{
-  \code{\link{BCEF_PTC}}.
-}
-
 \keyword{datasets}

@@ -16,6 +16,43 @@
 #include "nn.h"
 
 ///////////////////////////////////////////////////////////////////
+//u index 
+///////////////////////////////////////////////////////////////////
+SEXP mkUIndx(SEXP n_r, SEXP m_r, SEXP nnIndx_r, SEXP uIndx_r, SEXP uIndxLU_r, SEXP uiIndx_r, SEXP nnIndxLU_r, SEXP searchType_r){
+
+  int n = INTEGER(n_r)[0];
+  int m = INTEGER(m_r)[0];
+  int *nnIndx = INTEGER(nnIndx_r);
+  int *uIndx = INTEGER(uIndx_r);
+  int *uIndxLU = INTEGER(uIndxLU_r);
+  int *uiIndx = INTEGER(uiIndx_r);
+  int *nnIndxLU = INTEGER(nnIndxLU_r);
+  int searchType = INTEGER(searchType_r)[0];
+  int i, j, k;
+  int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
+
+  if(searchType == 0){
+    mkUIndx0(n, m, nnIndx, uIndx, uIndxLU);
+  }else if(searchType == 1){
+    mkUIndx1(n, m, nnIndx, uIndx, uIndxLU);
+  }else{
+    mkUIndx2(n, m, nnIndx, nnIndxLU, uIndx, uIndxLU);
+  }
+  
+  //u lists those locations that have the i-th location as a neighbor
+  //then for each of those locations that have i as a neighbor, we need to know the index of i in each of their B vectors (i.e. where does i fall in their neighbor set)
+  for(i = 0; i < n; i++){//for each i
+    for(j = 0; j < uIndxLU[n+i]; j++){//for each location that has i as a neighbor
+  	k = uIndx[uIndxLU[i]+j];//index of a location that has i as a neighbor
+  	uiIndx[uIndxLU[i]+j] = which(i, &nnIndx[nnIndxLU[k]], nnIndxLU[n+k]);
+    }
+  }
+  
+  return R_NilValue;
+}
+
+
+///////////////////////////////////////////////////////////////////
 //Brute force 
 ///////////////////////////////////////////////////////////////////
 

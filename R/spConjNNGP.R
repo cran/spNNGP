@@ -245,6 +245,7 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, knots, n.neighbor
         
         nn.indx <- indx$nnIndx
         nn.indx.lu <- indx$nnIndxLU
+        nn.indx.run.time <- indx$run.time
     }
     
     storage.mode(nn.indx) <- "integer"
@@ -414,7 +415,8 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, knots, n.neighbor
 
     if(return.neighbor.info){
         out$neighbor.info <- list(n.neighbors = n.neighbors, n.indx=mk.n.indx.list(nn.indx, n, n.neighbors),
-                                  nn.indx=nn.indx, nn.indx.lu=nn.indx.lu, ord=ord)
+                                  nn.indx=nn.indx, nn.indx.lu=nn.indx.lu, ord=ord,
+                                  nn.indx.run.time=nn.indx.run.time)
     }
 
     ##do exact sampling and fit and replicated data if requested

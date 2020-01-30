@@ -372,6 +372,16 @@ extern "C" {
       
       R_CheckUserInterrupt();
     }
+
+    if(verbose){
+      Rprintf("Sampled: %i of %i, %3.2f%%\n", s, nSamples, 100.0);
+      Rprintf("Report interval Metrop. Acceptance rate: %3.2f%%\n", 100.0*batchAccept/nReport);
+      Rprintf("Overall Metrop. Acceptance rate: %3.2f%%\n", 100.0*accept/nSamples);
+      Rprintf("-------------------------------------------------\n");
+      #ifdef Win32
+      R_FlushConsole();
+      #endif
+    }
     
     PutRNGstate();
 

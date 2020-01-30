@@ -40,7 +40,7 @@ PGLogit <- function(formula, weights = 1, data = parent.frame(), n.samples, n.om
         }
     }
 
-    beta.starting <- coefficients(glm((y/weights)~x-1, weights=weights, family="binomial"))
+    beta.starting <- coefficients(glm((y/weights)~X-1, weights=weights, family="binomial"))
     
     storage.mode(y) <- "double"
     storage.mode(X) <- "double"

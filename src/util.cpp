@@ -60,7 +60,7 @@ void getNNIndx(int i, int m, int &iNNIndx, int &iNN){
   } 
 }
 
-void mkUIndx(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU){ 
+void mkUIndx0(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU){ 
   
   int iNNIndx, iNN, i, j, k, l, h;
   
@@ -76,9 +76,109 @@ void mkUIndx(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU){
       }
     }
     l += h;
-    uIndxLU[n+i] = h; 
+    uIndxLU[n+i] = h;
+    R_CheckUserInterrupt();
   }
 }
+
+void mkUIndx1(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU){ 
+  
+  int iNNIndx, iNN, i, j, k, l, h;
+  
+  for(i = 0, l = 0; i < n; i++){    
+    uIndxLU[i] = l; 
+    for(j = n-1, h = 0; j > i; j--){   
+      getNNIndx(j, m, iNNIndx, iNN);  
+      for(k = 0; k < iNN; k++){      	
+	if(nnIndx[iNNIndx+k] == i){
+	  uIndx[l+h] = j;
+	  h++;
+	}    
+      }
+    }
+    l += h;
+    uIndxLU[n+i] = h;
+    R_CheckUserInterrupt();
+  }
+}
+
+
+void mkUIndx2(int n, int m, int* nnIndx, int *nnIndxLU, int* uIndx, int* uIndxLU){ 
+
+  int i, j, k;
+  int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
+  
+  //int *j_A = new int[nIndx]; is nnIndx
+  int *i_nnIndx = new int[n+1];
+  //int *j_A_csc = new int[nIndx];//uIndx
+  int *i_A_csc = new int[n+1];
+
+  for(i = 0, k = 0; i < n; i++){
+    if(nnIndxLU[n+i] == 0){//excludes rows with no elements, i.e., the first row because it is zero by design A[0,0] = 0
+      i_nnIndx[0] = 0;
+    }else{
+      i_nnIndx[k] = i_nnIndx[k-1]+nnIndxLU[n+i-1];
+    }
+    k++;
+  }
+  i_nnIndx[n] = i_nnIndx[0]+nIndx;
+    
+  crs_csc(n, i_nnIndx, nnIndx, i_A_csc, uIndx);
+  
+  for(i = 0; i < n; i++){
+    uIndxLU[i] = i_A_csc[i];
+    uIndxLU[i+n] = i_A_csc[i+1]-i_A_csc[i];
+  }
+  
+  delete[] i_nnIndx;
+  delete[] i_A_csc;
+  
+}
+
+
+void crs_csc(int n, int *i_A, int *j_A, int *i_B, int *j_B){
+
+  int i, j, col, cumsum, temp, row, dest, last;
+  
+  int nnz = i_A[n];
+
+  for(i = 0; i < n; i++){
+    i_B[i] = 0;
+  }
+  
+  for(i = 0; i < nnz; i++){            
+    i_B[j_A[i]]++;
+  }
+  
+  //cumsum the nnz per column to get i_B[]
+  for(col = 0, cumsum = 0; col < n; col++){     
+    temp  = i_B[col];
+    i_B[col] = cumsum;
+    cumsum += temp;
+  }
+  i_B[n] = nnz; 
+  
+  for(row = 0; row < n; row++){
+    for(j = i_A[row]; j < i_A[row+1]; j++){
+      col  = j_A[j];
+      dest = i_B[col];
+      
+      j_B[dest] = row;
+      i_B[col]++;
+    }
+  }  
+  
+  for(col = 0, last = 0; col <= n; col++){
+    temp  = i_B[col];
+    i_B[col] = last;
+    last = temp;
+  }
+} 
+
+
+
+
+
 
 std::string getCorName(int i){
 

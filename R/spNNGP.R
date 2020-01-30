@@ -7,9 +7,10 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     ####################################################
     ##Check for unused args
     ####################################################
-    formal.args <- names(formals(sys.function(sys.parent())))
-    elip.args <- names(list(...))
-    for(i in elip.args){
+    formal.args <- c(names(formals(sys.function(sys.parent()))), "u.search.type")
+    
+    elip.args <- list(...)
+    for(i in names(elip.args)){
         if(! i %in% formal.args)
             warning("'",i, "' is not an argument")
     }
@@ -74,7 +75,7 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     family <- tolower(family)
     
     if(!family%in%family.names){stop("error: specified family '",family,"' is not a valid option; choose from ", paste(family.names, collapse=", ", sep="") ,".")}    
-    if(method == "response" & family != "gaussian"){stop("error: only the sequential method can be used with non-Gaussain family.")}
+    if(method == "response" & family != "gaussian"){stop("error: only the latent method can be used with non-Gaussain family.")}
     
     if(family == "binomial"){
         if(missing(weights)){
@@ -91,21 +92,41 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     }
     
     ####################################################
-    ##Ordering
+    ##Neighbors and ordering
     ####################################################
     neighbor.info.provided <- FALSE
-
+    
+    u.search.type <- 2 ##2 is very fast, 1 is slightly faster than 0, and 0 is the orginal slow one (2 and 0 should match, 1 is also corrected just different opposite sorting among the children)
+    if("u.search.type" %in% names(elip.args)){
+        u.search.type <- elip.args[["u.search.type"]]
+    }
+    
     if(!missing(neighbor.info)){
 
+        warning("Using user defined neighbor.info. No checks are done on the supplied neighbor information.")
+        
         if(!all(c("n.neighbors","nn.indx","nn.indx.lu","ord") %in% names(neighbor.info))){stop("The supplied neighbor.info is malformed.")}
         
         nn.indx <- neighbor.info$nn.indx
         nn.indx.lu <- neighbor.info$nn.indx.lu
         ord <- neighbor.info$ord
         n.neighbors <- neighbor.info$n.neighbors
+        nn.indx.run.time <- neighbor.info$nn.indx.run.time
         neighbor.info.provided <- TRUE
-        
-        warning("Using user defined neighbor.info. No checks are done on the supplied neighbor information.")
+
+        if(method == "latent"){
+            
+            if(!all(c("u.indx", "u.indx.lu", "ui.indx") %in% names(neighbor.info))){
+                ##must be neighbor.info from a response or conjugate model
+                neighbor.info <- c(neighbor.info, mkUIndx(n, n.neighbors, nn.indx, nn.indx.lu, u.search.type))
+                print("Computing additional index needed for method = 'latent' using user defined neighbor.info. This might take a while if n is large.")
+            }
+
+            u.indx <- neighbor.info$u.indx
+            u.indx.lu <- neighbor.info$u.indx.lu
+            ui.indx <- neighbor.info$ui.indx
+            u.indx.run.time <- neighbor.info$u.indx.run.time
+        }
         
     }else{
         
@@ -138,7 +159,7 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     ####################################################
     ##NNGP method
     ####################################################
-    method.names <- c("response","sequential")
+    method.names <- c("response","latent")
     method <- tolower(method)
     
     if(!method%in%method.names){stop("error: specified method '",method,"' is not a valid option; choose from ", paste(method.names, collapse=", ", sep="") ,".")}
@@ -281,6 +302,12 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     ##nn search 
     ####################################################
     if(!neighbor.info.provided){
+
+        if(verbose){
+            cat("----------------------------------------\n");
+            cat("\tBuilding the neighbor list\n");
+            cat("----------------------------------------\n");
+        }
         
         search.type.names <- c("brute", "cb")
         
@@ -297,12 +324,32 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
         
         nn.indx <- indx$nnIndx
         nn.indx.lu <- indx$nnIndxLU
-    }
-    
-    storage.mode(nn.indx) <- "integer"
-    storage.mode(nn.indx.lu) <- "integer"
+        nn.indx.run.time <- indx$run.time
+        
+        storage.mode(nn.indx) <- "integer"
+        storage.mode(nn.indx.lu) <- "integer"
+        
+        if(method == "latent"){
 
-    
+            if(verbose){
+                cat("----------------------------------------\n");
+                cat("Building the neighbors of neighbors list\n");
+                cat("----------------------------------------\n");
+            }
+            
+            indx <- mkUIndx(n, n.neighbors, nn.indx, nn.indx.lu, u.search.type)
+            
+            u.indx <- indx$u.indx
+            u.indx.lu <- indx$u.indx.lu
+            ui.indx <- indx$ui.indx
+            u.indx.run.time <- indx$run.time
+            
+            storage.mode(u.indx) <- "integer"
+            storage.mode(u.indx.lu) <- "integer"
+            storage.mode(ui.indx) <- "integer"
+        }
+    }  
+
     ####################################################
     ##fitted and replicated y 
     ####################################################
@@ -347,13 +394,11 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
 
     ptm <- proc.time()
 
-    nngp <- paste(substr(method,1,1),"NNGP",collapse="",sep="")
-
     if(family == "gaussian"){
 
         if(method == "response"){
             
-            out <- .Call(nngp, y, X, p, n, n.neighbors, coords, cov.model.indx, nn.indx, nn.indx.lu, 
+            out <- .Call("rNNGP", y, X, p, n, n.neighbors, coords, cov.model.indx, nn.indx, nn.indx.lu, 
                          sigma.sq.IG, tau.sq.IG, phi.Unif, nu.Unif, 
                          beta.starting, sigma.sq.starting, tau.sq.starting, phi.starting, nu.starting,
                          sigma.sq.tuning, tau.sq.tuning, phi.tuning, nu.tuning,
@@ -361,7 +406,7 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
             
         }else{##sequential
             
-            out <- .Call(nngp, y, X, p, n, n.neighbors, coords, cov.model.indx, nn.indx, nn.indx.lu, 
+            out <- .Call("sNNGP", y, X, p, n, n.neighbors, coords, cov.model.indx, nn.indx, nn.indx.lu, u.indx, u.indx.lu, ui.indx,
                          sigma.sq.IG, tau.sq.IG, phi.Unif, nu.Unif, 
                          beta.starting, sigma.sq.starting, tau.sq.starting, phi.starting, nu.starting,
                          sigma.sq.tuning, tau.sq.tuning, phi.tuning, nu.tuning,
@@ -376,7 +421,7 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
         
     }else{
         
-        out <- .Call("sNNGPLogit", y, X, p, n, n.neighbors, coords, weights, cov.model.indx, nn.indx, nn.indx.lu, 
+        out <- .Call("sNNGPLogit", y, X, p, n, n.neighbors, coords, weights, cov.model.indx, nn.indx, nn.indx.lu, u.indx, u.indx.lu, ui.indx,
                      sigma.sq.IG, phi.Unif, nu.Unif, 
                      beta.starting, sigma.sq.starting, phi.starting, nu.starting,
                      sigma.sq.tuning, phi.tuning, nu.tuning,
@@ -397,9 +442,17 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     colnames(out$p.theta.samples) <- col.names
     colnames(out$p.beta.samples) <- x.names
     
-    if(return.neighbor.info || method == "response"){
-        out$neighbor.info <- list(n.neighbors = n.neighbors, n.indx=mk.n.indx.list(nn.indx, n, n.neighbors),
-                                  nn.indx=nn.indx, nn.indx.lu=nn.indx.lu, ord=ord)
+    if(return.neighbor.info){
+        if(method == "response"){
+            out$neighbor.info <- list(n.neighbors = n.neighbors, n.indx=mk.n.indx.list(nn.indx, n, n.neighbors),
+                                      nn.indx=nn.indx, nn.indx.lu=nn.indx.lu, ord=ord,
+                                      nn.indx.run.time=nn.indx.run.time)
+        }else{
+            out$neighbor.info <- list(n.neighbors = n.neighbors, n.indx=mk.n.indx.list(nn.indx, n, n.neighbors),
+                                      nn.indx=nn.indx, nn.indx.lu=nn.indx.lu, u.indx=u.indx, u.indx.lu=u.indx.lu, ui.indx=ui.indx, ord=ord,
+                                      nn.indx.run.time=nn.indx.run.time, u.indx.run.time=u.indx.run.time)
+            
+        }
     }
 
     ##put everthing back in the original order
@@ -408,7 +461,7 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     out$X <- X[order(ord),,drop=FALSE]
     out$weights <- weights[order(ord)]
 
-    if(nngp == "sNNGP"){
+    if(method == "latent"){
         out$p.w.samples <- out$p.w.samples[order(ord),,drop=FALSE]
     }
 

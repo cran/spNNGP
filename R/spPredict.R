@@ -36,11 +36,11 @@ spPredict <- function(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1, verb
         if(length(class(sp.obj)) == 4 & class(sp.obj)[4] == "SLGP"){
             out <- c(out, spConjNNGP(sp.obj$y ~ sp.obj$X-1, coords=sp.obj$coords, knots=sp.obj$knots, sigma.sq.IG=sp.obj$sigma.sq.IG, n.neighbors=sp.obj$n.neighbors,
                                      X.0 = X.0, coords.0=coords.0,
-                                     theta.alpha=theta.alpha, cov.model=sp.obj$cov.model, n.omp.threads=n.omp.threads, search.type=sp.obj$search.type))
+                                     theta.alpha=theta.alpha, cov.model=sp.obj$cov.model, n.omp.threads=n.omp.threads, search.type=sp.obj$search.type, verbose=verbose))
         }else{
             out <- c(out, spConjNNGP(sp.obj$y ~ sp.obj$X-1, coords=sp.obj$coords, sigma.sq.IG=sp.obj$sigma.sq.IG, n.neighbors=sp.obj$n.neighbors,
                                      X.0 = X.0, coords.0=coords.0,
-                                     theta.alpha=theta.alpha, cov.model=sp.obj$cov.model, n.omp.threads=n.omp.threads, search.type=sp.obj$search.type))
+                                     theta.alpha=theta.alpha, cov.model=sp.obj$cov.model, n.omp.threads=n.omp.threads, search.type=sp.obj$search.type, verbose=verbose))
         }
         
         out$run.time <- proc.time() - ptm
@@ -62,7 +62,7 @@ spPredict <- function(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1, verb
         p.theta.samples <- sp.obj$p.theta.samples
         p.beta.samples <- sp.obj$p.beta.samples
         n.samples <- nrow(p.beta.samples)
-        if(class(sp.obj)[2] == "sequential"){
+        if(class(sp.obj)[2] == "latent"){
             p.w.samples <- sp.obj$p.w.samples
         }    
         n.neighbors <- sp.obj$n.neighbors
@@ -73,7 +73,7 @@ spPredict <- function(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1, verb
             sub.sample <- list()
         }
      
-        start <- ifelse(!"start" %in% names(sub.sample), floor(0.5*n.samples), sub.sample$start)
+        start <- ifelse(!"start" %in% names(sub.sample), 1, sub.sample$start)
         end <- ifelse(!"end" %in% names(sub.sample), n.samples, sub.sample$end)
         thin <- ifelse(!"thin" %in% names(sub.sample), 1, sub.sample$thin)   
         if(!is.numeric(start) || start >= n.samples){stop("invalid start")}
@@ -86,7 +86,7 @@ spPredict <- function(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1, verb
         p.theta.samples <- t(p.theta.samples[s.indx,,drop=FALSE])
         p.beta.samples <- t(p.beta.samples[s.indx,,drop=FALSE])
         
-        if(class(sp.obj)[2] == "sequential"){
+        if(class(sp.obj)[2] == "latent"){
             p.w.samples <- p.w.samples[,s.indx,drop=FALSE]
         }    
         
@@ -115,7 +115,7 @@ spPredict <- function(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1, verb
         storage.mode(q) <- "integer"
         storage.mode(p.beta.samples) <- "double"
         storage.mode(p.theta.samples) <- "double"
-        if(class(sp.obj)[2] == "sequential"){
+        if(class(sp.obj)[2] == "latent"){
             storage.mode(p.w.samples) <- "double"
         }
         storage.mode(n.samples) <- "integer"
@@ -128,7 +128,7 @@ spPredict <- function(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1, verb
         
         ptm <- proc.time()
         
-        if(class(sp.obj)[2] == "sequential"){
+        if(class(sp.obj)[2] == "latent"){
             out <- c(out, .Call("sNNGPPredict", X, y, coords, n, p, n.neighbors, X.0, coords.0, q, nn.indx.0, 
                                 p.beta.samples, p.theta.samples, p.w.samples, n.samples, family.indx, cov.model.indx, n.omp.threads, verbose, n.report))
         }else{

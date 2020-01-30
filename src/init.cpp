@@ -6,8 +6,8 @@
 
 static const R_CallMethodDef CallEntries[] = {
     {"rNNGP", (DL_FUNC) &rNNGP, 28},
-    {"sNNGP", (DL_FUNC) &sNNGP, 26},
-    {"sNNGPLogit", (DL_FUNC) &sNNGPLogit, 24},
+    {"sNNGP", (DL_FUNC) &sNNGP, 29},
+    {"sNNGPLogit", (DL_FUNC) &sNNGPLogit, 27},
     {"cNNGP", (DL_FUNC) &cNNGP, 18},
     {"cSLGP", (DL_FUNC) &cSLGP, 21},
     {"rNNGPPredict", (DL_FUNC) &rNNGPPredict, 17},

@@ -139,7 +139,7 @@ spDiag <- function(object, sub.sample, ...){
 
     n.samples <- length(out$s.indx)
     
-    if(class(object)[2] == "sequential"){
+    if(class(object)[2] == "latent"){
                        
         n.samples <- length(out$s.indx)
         y <- object$y

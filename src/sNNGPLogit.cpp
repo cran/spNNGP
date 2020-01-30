@@ -58,7 +58,7 @@ void updateBF1(double *B, double *F, double *c, double *C, double *coords, int *
 
 extern "C" {
   
-  SEXP sNNGPLogit(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP m_r, SEXP coords_r, SEXP nTrial_r, SEXP covModel_r, SEXP nnIndx_r, SEXP nnIndxLU_r,
+  SEXP sNNGPLogit(SEXP y_r, SEXP X_r, SEXP p_r, SEXP n_r, SEXP m_r, SEXP coords_r, SEXP nTrial_r, SEXP covModel_r, SEXP nnIndx_r, SEXP nnIndxLU_r, SEXP uIndx_r, SEXP uIndxLU_r, SEXP uiIndx_r,
 		  SEXP sigmaSqIG_r, SEXP phiUnif_r, SEXP nuUnif_r, 
 		  SEXP betaStarting_r, SEXP sigmaSqStarting_r, SEXP phiStarting_r, SEXP nuStarting_r,
 		  SEXP sigmaSqTuning_r, SEXP phiTuning_r, SEXP nuTuning_r, 
@@ -87,6 +87,9 @@ extern "C" {
     int *nTrial = INTEGER(nTrial_r);
     int *nnIndx = INTEGER(nnIndx_r);
     int *nnIndxLU = INTEGER(nnIndxLU_r);
+    int *uIndx = INTEGER(uIndx_r);
+    int *uIndxLU = INTEGER(uIndxLU_r);
+    int *uiIndx = INTEGER(uiIndx_r);
     int covModel = INTEGER(covModel_r)[0];
     std::string corName = getCorName(covModel);
         
@@ -117,7 +120,7 @@ extern "C" {
       Rprintf("----------------------------------------\n");
       Rprintf("\tModel description\n");
       Rprintf("----------------------------------------\n");
-      Rprintf("NNGP Sequential model fit with %i observations.\n\n", n);
+      Rprintf("NNGP Latent model fit with %i observations.\n\n", n);
       Rprintf("Number of covariates %i (including intercept if specified).\n\n", p);
       Rprintf("Using the %s spatial correlation model.\n\n", corName.c_str());
       Rprintf("Using %i nearest neighbors.\n\n", m);
@@ -177,31 +180,31 @@ extern "C" {
 
     //allocate for the U index vector that keep track of which locations have the i-th location as a neighbor
     int nIndx = static_cast<int>(static_cast<double>(1+m)/2*m+(n-m-1)*m);
-    int *uIndx = (int *) R_alloc(nIndx, sizeof(int)); //U indexes 
+    // int *uIndx = (int *) R_alloc(nIndx, sizeof(int)); //U indexes 
     
-    //first column holds the uIndx index for i-th location and second column holds
-    //the number of neighbors for which the i-th location is a neighbor
-    int *uIndxLU = (int *) R_alloc(2*n, sizeof(int));
+    // //first column holds the uIndx index for i-th location and second column holds
+    // //the number of neighbors for which the i-th location is a neighbor
+    // int *uIndxLU = (int *) R_alloc(2*n, sizeof(int));
     
-    //make u index
-    if(verbose){
-      Rprintf("Building neighbors of neighbor index\n");
-      #ifdef Win32
-        R_FlushConsole();
-      #endif
-    }
-    mkUIndx(n, m, nnIndx, uIndx, uIndxLU);
+    // //make u index
+    // if(verbose){
+    //   Rprintf("Building neighbors of neighbor index\n");
+    //   #ifdef Win32
+    //     R_FlushConsole();
+    //   #endif
+    // }
+    // mkUIndx(n, m, nnIndx, uIndx, uIndxLU);
     
-    //u lists those locations that have the i-th location as a neighbor
-    //then for each of those locations that have i as a neighbor, we need to know the index of i in each of their B vectors (i.e. where does i fall in their neighbor set)
-    int *uiIndx = (int *) R_alloc(nIndx, sizeof(int));
+    // //u lists those locations that have the i-th location as a neighbor
+    // //then for each of those locations that have i as a neighbor, we need to know the index of i in each of their B vectors (i.e. where does i fall in their neighbor set)
+    // int *uiIndx = (int *) R_alloc(nIndx, sizeof(int));
     
-    for(i = 0; i < n; i++){//for each i
-      for(j = 0; j < uIndxLU[n+i]; j++){//for each location that has i as a neighbor
-	k = uIndx[uIndxLU[i]+j];//index of a location that has i as a neighbor
-	uiIndx[uIndxLU[i]+j] = which(i, &nnIndx[nnIndxLU[k]], nnIndxLU[n+k]);
-      }
-    }
+    // for(i = 0; i < n; i++){//for each i
+    //   for(j = 0; j < uIndxLU[n+i]; j++){//for each location that has i as a neighbor
+    // 	k = uIndx[uIndxLU[i]+j];//index of a location that has i as a neighbor
+    // 	uiIndx[uIndxLU[i]+j] = which(i, &nnIndx[nnIndxLU[k]], nnIndxLU[n+k]);
+    //   }
+    // }
  
     //other stuff
     int mm = m*m;
@@ -445,6 +448,16 @@ extern "C" {
       status++;
       
       R_CheckUserInterrupt();
+    }
+
+    if(verbose){
+      Rprintf("Sampled: %i of %i, %3.2f%%\n", s, nSamples, 100.0);
+      Rprintf("Report interval Metrop. Acceptance rate: %3.2f%%\n", 100.0*batchAccept/nReport);
+      Rprintf("Overall Metrop. Acceptance rate: %3.2f%%\n", 100.0*accept/nSamples);
+      Rprintf("-------------------------------------------------\n");
+      #ifdef Win32
+      R_FlushConsole();
+      #endif
     }
     
     PutRNGstate();

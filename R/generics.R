@@ -181,18 +181,23 @@ fitted.NNGP <- function(object, sub.sample, ...){
             n.samples <- length(s.indx)
         }
         
-        if(class(object)[2] == "sequential"){
+        if(class(object)[2] == "latent"){
             
             if(update.fit.rep){
                 beta <- as.matrix(object$p.beta.samples)[s.indx,,drop=FALSE]
                 w <- object$p.w.samples[,s.indx,drop=FALSE]
-                tau.sq <- object$p.theta.samples[s.indx,"tau.sq"]
                 
                 X <- object$X
                 y.hat.samples <- X%*%t(beta) + w
                 y.hat.quants <- t(apply(y.hat.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))
                 
-                y.rep.samples <- X%*%t(beta) + w + sapply(tau.sq, function(x) sqrt(x)*rnorm(nrow(X)))
+                if(class(object)[2] == "gaussian"){
+                    tau.sq <- object$p.theta.samples[s.indx,"tau.sq"]
+                    y.rep.samples <- y.hat.samples + sapply(tau.sq, function(x) sqrt(x)*rnorm(nrow(X)))
+                }else{
+                    y.rep.samples <- apply(1/(1+exp(-y.hat.samples)), 2, function(x) rbinom(nrow(X), object$weights, x))
+                }
+                
                 y.rep.quants <- t(apply(y.rep.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))
 
                 return(list(y.hat.quants=y.hat.quants, y.hat.samples=y.hat.samples,
@@ -334,7 +339,7 @@ residuals.PGLogit <- function(object, sub.sample, ...){
 }
 
 print.PGLogit <- function(x, ...){
-    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.82)), "", sep = "\n")
+    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.75)), "", sep = "\n")
 }
 
 summary.PGLogit <- function(object, sub.sample, quantiles = c(0.025, 0.25, 0.5, 0.75, 0.975), digits = max(3L, getOption("digits") - 3L), ...){
@@ -369,7 +374,7 @@ summary.PGLogit <- function(object, sub.sample, quantiles = c(0.025, 0.25, 0.5, 
 
 print.NNGP <- function(x, ...){
 
-    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.82)), "", sep = "\n")
+    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.75)), "", sep = "\n")
     
     cat("Model class is",class(x)[1],class(x)[2],class(x)[3],"family.\n")
     
@@ -380,7 +385,7 @@ print.NNGP <- function(x, ...){
 
 print.spPredict <- function(x, ...){
 
-    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.82)), "", sep = "\n")
+    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.75)), "", sep = "\n")
     
     cat("Predictions for a model of class",x$sp.obj.class[1],x$sp.obj.class[2],x$sp.obj.class[3],"family.\n")
     
