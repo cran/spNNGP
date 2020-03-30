@@ -496,8 +496,8 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     out$starting <- starting
     out$priors <- priors
     out$tuning <- tuning
-    
-    class(out) <- c("NNGP", method, family)
+    out$type <- c(method, family)
+    class(out) <- "NNGP"
 
     out
     

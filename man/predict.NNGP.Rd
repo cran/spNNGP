@@ -1,20 +1,22 @@
-\name{spPredict}
-\alias{spPredict}
+\name{predict.NNGP}
+
+\alias{predict.NNGP}
+
 \title{Function for prediction at new locations using \code{NNGP} models.}
 
 \description{
-  The function \code{spPredict} collects posterior predictive samples
+  The function \code{predict} collects posterior predictive samples
   for a set of new locations given an object of
   class \code{NNGP}.
 }
 
 \usage{
-spPredict(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1,
-          verbose=TRUE, n.report=100, ...)
+\method{predict}{NNGP}(object, X.0, coords.0, sub.sample,
+        n.omp.threads = 1, verbose=TRUE, n.report=100, ...)
 }
 
 \arguments{
-  \item{sp.obj}{an object of class \code{NNGP}. }
+  \item{object}{an object of class \code{NNGP}. }
   \item{X.0}{the design matrix for prediction locations. An
     intercept should be provided in the first column if one is specified
     in \code{sp.obj} model.}
@@ -40,7 +42,7 @@ spPredict(sp.obj, X.0, coords.0, sub.sample, n.omp.threads = 1,
 }
 
 \value{
-  An object of class \code{spPredict} which is a list comprising:
+  An object of class \code{predict.NNGP} which is a list comprising:
   \item{p.y.0}{a matrix that holds the response variable posterior
     predictive samples where rows are locations corresponding to
   \code{coords.0} and columns are samples. }
@@ -127,7 +129,7 @@ m.s <- spNNGP(y~x-1, coords=coords, starting=starting, method="latent", n.neighb
               tuning=tuning, priors=priors, cov.model=cov.model,
               n.samples=n.samples, n.omp.threads=1, n.report=n.report)
 
-p.s <- spPredict(m.s, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
+p.s <- predict(m.s, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
 
 plot(apply(p.s$p.w.0, 1, mean), w.ho)
 plot(apply(p.s$p.y.0, 1, mean), y.ho)
@@ -137,7 +139,7 @@ m.r <- spNNGP(y~x-1, coords=coords, starting=starting, method="response", n.neig
               tuning=tuning, priors=priors, cov.model=cov.model,
               n.samples=n.samples, n.omp.threads=1, n.report=n.report)
 
-p.r <- spPredict(m.r, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
+p.r <- predict(m.r, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
 
 points(apply(p.r$p.y.0, 1, mean), y.ho, pch=19, col="blue")
 
@@ -149,7 +151,7 @@ m.c <- spConjNNGP(y~x-1, coords=coords, n.neighbors=10,
                   theta.alpha=theta.alpha, sigma.sq.IG=c(2, sigma.sq),
                   cov.model=cov.model, n.omp.threads=1)
 
-p.c <- spPredict(m.c, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
+p.c <- predict(m.c, X.0 = x.ho, coords.0 = coords.ho, n.omp.threads=1)
 
 points(p.c$y.0.hat, y.ho, pch=19, col="orange")
 

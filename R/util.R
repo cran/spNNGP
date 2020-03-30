@@ -139,8 +139,8 @@ spDiag <- function(object, sub.sample, ...){
 
     n.samples <- length(out$s.indx)
     
-    if(class(object)[2] == "latent"){
-                       
+    ##if(class(object)[2] == "latent"){
+    if(object$type[1] == "latent"){                 
         n.samples <- length(out$s.indx)
         y <- object$y
         X <- object$X
@@ -155,7 +155,8 @@ spDiag <- function(object, sub.sample, ...){
         beta.mu <- apply(beta, 2, mean)
         w.mu <- apply(w, 1, mean)
             
-        if(class(object)[3] == "gaussian"){
+        ##if(class(object)[3] == "gaussian"){
+        if(object$type[2] == "gaussian"){
             tau.sq <- object$p.theta.samples[out$s.indx,"tau.sq"]
             tau.sq.mu <- mean(tau.sq) 
             
@@ -192,7 +193,8 @@ spDiag <- function(object, sub.sample, ...){
         for(i in 1:n){
             w <- object$p.w.samples[i,out$s.indx,drop=FALSE]
                   
-            if(class(object)[3] == "gaussian"){
+            ##if(class(object)[3] == "gaussian"){
+            if(object$type[2] == "gaussian"){
                 tau.sq <- object$p.theta.samples[out$s.indx,"tau.sq"]
                 L <- dnorm(y[i], as.vector(X[i,]%*%t(beta)+w), sqrt(tau.sq), log=FALSE)
             }else{##binomial
@@ -219,7 +221,8 @@ spDiag <- function(object, sub.sample, ...){
         ##GPD and GRS
         ##############
               
-        if(class(object)[3] == "gaussian"){
+        ##if(class(object)[3] == "gaussian"){
+        if(object$type[2] == "gaussian"){
             out$GP <- GP(out$y.rep.samples, y)
             out$GRS <- GR(out$y.rep.samples, y)
         }
@@ -230,7 +233,8 @@ spDiag <- function(object, sub.sample, ...){
         ##GPD and GRS
         ##############
  
-        if(class(object)[3] == "gaussian"){
+        ##if(class(object)[3] == "gaussian"){
+        if(object$type[2] == "gaussian"){
             out$GP <- GP(out$y.rep.samples, object$y)
             out$GRS <- GR(out$y.rep.samples, object$y)
         }

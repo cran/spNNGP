@@ -312,7 +312,9 @@ extern "C" {
       }
             
       //update B and F
+#ifdef _OPENMP
       omp_set_num_threads(nThreads);
+#endif
       updateConjBF(B, F, R_iS, R_NiS, R_Ni, R_S, R_SInv, J_i, J_Ni, Omega_i, Omega_iNi, tmp_r, tmp_m, tmp_mr, tmp_mm, coords, knots, nnIndx, nnIndxLU, n, m, r, phi, alpha, nu, covModel, bk, nuMax);
 
       //make V_beta*^{-1} betaVStrInv (add R(S*)^{-1} to the lower diag)

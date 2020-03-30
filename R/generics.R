@@ -17,15 +17,17 @@ fitted.NNGP <- function(object, sub.sample, ...){
         n.report <-  elip.args[["n.report"]]
     }
     
-    if(class(object)[2] == "conjugate"){
-
+    ##if(class(object)[2] == "conjugate"){
+    if(object$type[1] == "conjugate"){
+        
         if(!missing(sub.sample)){
             if(!(is.atomic(sub.sample) && length(sub.sample) == 1L && sub.sample > 0)){
-                stop("error: for an object of class conjugate, the sub.sample argument should be in integer value indicating the number of fitted and replicated samples to collect.")
+                stop("error: for a conjugate model, the sub.sample argument should be in integer value indicating the number of fitted and replicated samples to collect.")
             }
         }
                        
-        if("SLGP" %in% class(object)){
+        ##if("SLGP" %in% class(object)){
+        if("SLGP" %in% object$type){
 
             if("y.hat.samples" %in% names(object)){
                 if(missing(sub.sample) || (!missing(sub.sample) && sub.sample == ncol(object$y.hat.samples))){
@@ -35,7 +37,7 @@ fitted.NNGP <- function(object, sub.sample, ...){
 
             ##y.rep.samples is missing or requesting a different number of samples
             if(missing(sub.sample)){
-                stop("error: for an object of class conjugate created with fit.rep=FALSE, the sub.sample argument should be provided to indicate the number of fitted and replicated samples to collect.")
+                stop("error: for a conjugate model created with fit.rep=FALSE, the sub.sample argument should be provided to indicate the number of fitted and replicated samples to collect.")
             }
             
             out <- list()
@@ -77,7 +79,7 @@ fitted.NNGP <- function(object, sub.sample, ...){
             
             ##y.rep.samples is missing or requesting a different number of samples
             if(missing(sub.sample)){
-                stop("error: for an object of class conjugate created with fit.rep=FALSE, the sub.sample argument should be provided to indicate the number of fitted and replicated samples to collect.")
+                stop("error: for an conjugate model created with fit.rep=FALSE, the sub.sample argument should be provided to indicate the number of fitted and replicated samples to collect.")
             }
 
             if(!"neighbor.info" %in% names(object)){
@@ -181,7 +183,8 @@ fitted.NNGP <- function(object, sub.sample, ...){
             n.samples <- length(s.indx)
         }
         
-        if(class(object)[2] == "latent"){
+        ##if(class(object)[2] == "latent"){
+        if(object$type[1] == "latent"){
             
             if(update.fit.rep){
                 beta <- as.matrix(object$p.beta.samples)[s.indx,,drop=FALSE]
@@ -191,7 +194,8 @@ fitted.NNGP <- function(object, sub.sample, ...){
                 y.hat.samples <- X%*%t(beta) + w
                 y.hat.quants <- t(apply(y.hat.samples, 1, function(x) quantile(x, prob=c(0.5, 0.05, 0.975))))
                 
-                if(class(object)[2] == "gaussian"){
+                ##if(class(object)[2] == "gaussian"){##this was a bug
+                if(object$type[2] == "gaussian"){
                     tau.sq <- object$p.theta.samples[s.indx,"tau.sq"]
                     y.rep.samples <- y.hat.samples + sapply(tau.sq, function(x) sqrt(x)*rnorm(nrow(X)))
                 }else{
@@ -314,7 +318,8 @@ residuals.NNGP <- function(object, sub.sample, ...){
     out <- fitted(object, sub.sample)   
     y <- object$y
         
-    if(class(object)[3] == "binomial"){
+    ##if(class(object)[3] == "binomial"){
+    if(object$type[2] == "binomial"){
         y <- y/object$weights
         y.hat.samples <- 1/(1+exp(-out$y.hat.samples))
     }
@@ -376,21 +381,12 @@ print.NNGP <- function(x, ...){
 
     cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.75)), "", sep = "\n")
     
-    cat("Model class is",class(x)[1],class(x)[2],class(x)[3],"family.\n")
+    ##cat("Model class is",class(x)[1],class(x)[2],class(x)[3],"family.\n")
+    cat("Model class is ",class(x)[1],", method ", x$type[1],", family ",x$type[2],".\n", sep="")
     
-    if(class(x)[2] != "conjugate"){
+    ##if(class(x)[2] != "conjugate"){
+    if(x$type[1] != "conjugate"){
         cat("\nModel object contains",nrow(x$p.theta.samples), "MCMC samples.\n")
-    }
-}
-
-print.spPredict <- function(x, ...){
-
-    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.75)), "", sep = "\n")
-    
-    cat("Predictions for a model of class",x$sp.obj.class[1],x$sp.obj.class[2],x$sp.obj.class[3],"family.\n")
-    
-    if(x$sp.obj.class[2] != "conjugate"){
-        cat("\nspPredict object contains",ncol(x$p.y.0), "samples from the posterior predictive distribution.\n")
     }
 }
 
@@ -401,11 +397,12 @@ summary.NNGP <- function(object, sub.sample, quantiles = c(0.025, 0.25, 0.5, 0.7
     print(object)
     cat("\n")
     
-    if(class(object)[2] == "conjugate"){
-        
+    ##if(class(object)[2] == "conjugate"){
+    if(object$type[1] == "conjugate"){
         slgp <- FALSE
         w.str <- FALSE
-        if("SLGP" %in% class(object)){
+        ##if("SLGP" %in% class(object)){
+        if("SLGP" %in% object$type){
             slgp <- TRUE
             if("w.str" %in% names(elip.args)){
                 w.str <- elip.args[["w.str"]]
@@ -530,4 +527,171 @@ print.spDiag <- function(x, ...){
         print(x$GRS)
     }
 
+}
+
+predict.NNGP <- function(object, X.0, coords.0, sub.sample, n.omp.threads = 1, verbose=TRUE, n.report=100, ...){
+  
+    ####################################################
+    ##Check for unused args
+    ####################################################
+    formal.args <- names(formals(sys.function(sys.parent())))
+
+    elip.args <- list(...)
+    for(i in names(elip.args)){
+        if(! i %in% formal.args)
+            warning("'",i, "' is not an argument")
+    }
+    
+    if(missing(object)){stop("error: predict expects object\n")}
+    if(!class(object)[1] == "NNGP"){
+        stop("error: requires an output object of class NNGP\n")
+    }
+
+
+    ##call
+    out <- list()
+    out$call <- match.call()
+    out$object.class <- class(object)
+    out$type <- object$type
+    
+    ##conjugate
+    ##if(class(object)[2] == "conjugate"){
+    if(object$type[1] == "conjugate"){
+
+        if(!missing(sub.sample)){
+            warning("'sub.sample' is not an argument for prediction using a conjugate model.")
+        }
+        
+        theta.alpha <- as.vector(object$theta.alpha)
+        names(theta.alpha) <- colnames(object$theta.alpha)
+        
+        ptm <- proc.time()
+        ##if(length(class(object)) == 4 & class(object)[4] == "SLGP"){
+        if("SLGP" %in% out$type){
+            out <- c(out, spConjNNGP(object$y ~ object$X-1, coords=object$coords, knots=object$knots, sigma.sq.IG=object$sigma.sq.IG, n.neighbors=object$n.neighbors,
+                                     X.0 = X.0, coords.0=coords.0,
+                                     theta.alpha=theta.alpha, cov.model=object$cov.model, n.omp.threads=n.omp.threads, search.type=object$search.type, verbose=verbose))
+        }else{
+            out <- c(out, spConjNNGP(object$y ~ object$X-1, coords=object$coords, sigma.sq.IG=object$sigma.sq.IG, n.neighbors=object$n.neighbors,
+                                     X.0 = X.0, coords.0=coords.0,
+                                     theta.alpha=theta.alpha, cov.model=object$cov.model, n.omp.threads=n.omp.threads, search.type=object$search.type, verbose=verbose))
+        }
+        
+        out$run.time <- proc.time() - ptm
+    }else{ ##sequential and response models
+        
+        X <- object$X
+        y <- object$y
+        coords <- object$coords
+        family <- object$family ##family code gaussian=1, binomial=2, ...
+        
+        family.indx <- 1
+        ##if(class(object)[3] == "binomial"){
+        if(out$type[2] == "binomial"){
+            family.indx <- 2
+        }
+        
+        n <- nrow(X)
+        p <- ncol(X)
+        
+        p.theta.samples <- object$p.theta.samples
+        p.beta.samples <- object$p.beta.samples
+        n.samples <- nrow(p.beta.samples)
+        ##if(class(object)[2] == "latent"){
+        if(out$type[1] == "latent"){
+            p.w.samples <- object$p.w.samples
+        }    
+        n.neighbors <- object$n.neighbors
+        cov.model.indx <- object$cov.model.indx
+        
+        ##subsamples
+        if(missing(sub.sample)){
+            sub.sample <- list()
+        }
+     
+        start <- ifelse(!"start" %in% names(sub.sample), 1, sub.sample$start)
+        end <- ifelse(!"end" %in% names(sub.sample), n.samples, sub.sample$end)
+        thin <- ifelse(!"thin" %in% names(sub.sample), 1, sub.sample$thin)   
+        if(!is.numeric(start) || start >= n.samples){stop("invalid start")}
+        if(!is.numeric(end) || end > n.samples){stop("invalid end")}
+        if(!is.numeric(thin) || thin >= n.samples){stop("invalid thin")}
+        sub.sample <- list(start=start, end=end, thin=thin)
+        s.indx <- seq(as.integer(start), as.integer(end), by=as.integer(thin))
+        n.samples <- length(s.indx)
+        
+        p.theta.samples <- t(p.theta.samples[s.indx,,drop=FALSE])
+        p.beta.samples <- t(p.beta.samples[s.indx,,drop=FALSE])
+        
+        ##if(class(object)[2] == "latent"){
+        if(out$type[1] == "latent"){
+            p.w.samples <- p.w.samples[,s.indx,drop=FALSE]
+        }    
+        
+        ##check X.0 and coords.0
+        if(missing(X.0)){stop("error: X.0 must be specified\n")}
+        if(!any(is.data.frame(X.0), is.matrix(X.0))){stop("error: X.0 must be a data.frame or matrix\n")}
+        if(ncol(X.0) != ncol(X)){ stop(paste("error: X.0 must have ",p," columns\n"))}
+        
+        if(missing(coords.0)){stop("error: coords.0 must be specified\n")}
+        if(!any(is.data.frame(coords.0), is.matrix(coords.0))){stop("error: coords.0 must be a data.frame or matrix\n")}
+        if(!ncol(coords.0) == 2){stop("error: coords.0 must have two columns\n")}
+        
+        q <- nrow(X.0)
+        
+        ##get nn indx
+        nn.indx.0 <- nn2(coords, coords.0, k=n.neighbors)$nn.idx-1 ##obo for cNNGP.cpp indexing
+        
+        storage.mode(X) <- "double"
+        storage.mode(y) <- "double"
+        storage.mode(coords) <- "double"
+        storage.mode(n) <- "integer"
+        storage.mode(p) <- "integer"
+        storage.mode(n.neighbors) <- "integer"
+        storage.mode(X.0) <- "double"
+        storage.mode(coords.0) <- "double"
+        storage.mode(q) <- "integer"
+        storage.mode(p.beta.samples) <- "double"
+        storage.mode(p.theta.samples) <- "double"
+        ##if(class(object)[2] == "latent"){
+        if(out$type[1] == "latent"){
+            storage.mode(p.w.samples) <- "double"
+        }
+        storage.mode(n.samples) <- "integer"
+        storage.mode(cov.model.indx) <- "integer"
+        storage.mode(nn.indx.0) <- "integer"
+        storage.mode(n.omp.threads) <- "integer"
+        storage.mode(verbose) <- "integer"
+        storage.mode(n.report) <- "integer"
+        storage.mode(family.indx) <- "integer"
+        
+        ptm <- proc.time()
+        
+        ##if(class(object)[2] == "latent"){
+        if(out$type[1] == "latent"){
+            out <- c(out, .Call("sNNGPPredict", X, y, coords, n, p, n.neighbors, X.0, coords.0, q, nn.indx.0, 
+                                p.beta.samples, p.theta.samples, p.w.samples, n.samples, family.indx, cov.model.indx, n.omp.threads, verbose, n.report))
+        }else{
+            out <- c(out, .Call("rNNGPPredict", X, y, coords, n, p, n.neighbors, X.0, coords.0, q, nn.indx.0, 
+                                p.beta.samples, p.theta.samples, n.samples, cov.model.indx, n.omp.threads, verbose, n.report))
+        }
+        
+        out$run.time <- proc.time() - ptm
+    }
+
+    class(out) <- "predict.NNGP"
+    out
+}
+
+
+print.predict.NNGP <- function(x, ...){
+
+    cat("\nCall:", deparse(x$call, width.cutoff = floor(getOption("width") * 0.75)), "", sep = "\n")
+    
+    ##cat("Predictions for a model of class",x$object.class[1],x$object.class[2],x$object.class[3],"family.\n")
+    cat("Predictions for a model of class ",x$object.class[1],", method ", x$type[1],", family ",x$type[2],".\n", sep="")
+    
+    ##if(x$object.class[1] != "conjugate"){
+    if(x$type[1] != "conjugate"){
+        cat("\npredict.NNGP object contains",ncol(x$p.y.0), "samples from the posterior predictive distribution.\n")
+    }
 }

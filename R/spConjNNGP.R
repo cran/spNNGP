@@ -509,11 +509,13 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, knots, n.neighbor
         out$X.str <- out$X.str[order(ord),]
     }
 
-    class(out) <- c("NNGP", "conjugate", "gaussian")
+    out$type <- c("conjugate", "gaussian")
+    
+    class(out) <- "NNGP"
     
     if(slgp){
         out$knots <- knots
-        class(out) <- c(class(out), "SLGP")
+        out$type <- c(out$type, "SLGP")
     }
     
     out

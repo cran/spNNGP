@@ -2,13 +2,11 @@ useDynLib(spNNGP, .registration=TRUE)
 
 export(spNNGP)
 export(spConjNNGP)
-export(spPredict)
 export(PGLogit)
 export(spDiag)
 
 ## methods for class betareg
 S3method("print", "NNGP")
-S3method("print", "spPredict")
 S3method("print", "PGLogit")
 S3method("print", "spDiag")
 S3method("summary", "NNGP")
@@ -17,6 +15,8 @@ S3method("fitted", "NNGP")
 S3method("fitted", "PGLogit")
 S3method("residuals", "NNGP")
 S3method("residuals", "PGLogit")
+S3method("predict", "NNGP")
+S3method("print", "predict.NNGP")
 
 import(Formula, coda, RANN)
 importFrom("stats", "coefficients", "lm", "contrasts", "is.empty.model", "model.matrix", "model.response", "terms", "dnorm", "pnorm", "dbinom", "glm", "rnorm", "var", "rbinom", "fitted", "quantile", "rgamma")
