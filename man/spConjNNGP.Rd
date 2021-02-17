@@ -190,16 +190,16 @@
   Datta, A., S. Banerjee, A.O. Finley, and A.E. Gelfand. (2016)
   Hierarchical Nearest-Neighbor Gaussian process models for large
   geostatistical datasets. \emph{Journal of the American Statistical
-  Association}, 111:800-812.
+  Association}, \doi{10.1080/01621459.2015.1044091}.
 
   Finley, A.O., A. Datta, B.D. Cook, D.C. Morton, H.E. Andersen, and
   S. Banerjee. (2019) Efficient algorithms for Bayesian Nearest Neighbor
   Gaussian Processes. \emph{Journal of Computational and Graphical
-  Statistics}, \url{https://doi.org/10.1080/10618600.2018.1537924}.
+  Statistics}, \doi{10.1080/10618600.2018.1537924}.
   
   Gneiting, T and A.E. Raftery. (2007) Strictly proper scoring rules,
   prediction, and estimation. \emph{Journal of the American Statistical
-    Association}, 102:359-378.
+    Association}, \doi{10.1198/016214506000001437}.
 
   Shirota, S., A.O. Finley, B.D. Cook, and S. Banerjee (2019) Conjugate Nearest Neighbor Gaussian Process models for efficient statistical interpolation of large spatial data. \url{https://arxiv.org/abs/1907.10109}.
 }

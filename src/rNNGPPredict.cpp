@@ -95,8 +95,8 @@ extern "C" {
     
     if(corName == "matern"){
       for(i = 0; i < nSamples; i++){
-	if(theta[i*nTheta+nuIndx] > nb){
-	  nb = theta[i*nTheta+nuIndx];
+	if(theta[i*nTheta+nuIndx] > nuMax){
+	  nuMax = theta[i*nTheta+nuIndx];
 	}
       }
 

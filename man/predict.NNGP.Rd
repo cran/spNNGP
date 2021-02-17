@@ -57,12 +57,12 @@
    Datta, A., S. Banerjee, A.O. Finley, and A.E. Gelfand. (2016)
   Hierarchical Nearest-Neighbor Gaussian process models for large
   geostatistical datasets. \emph{Journal of the American Statistical
-  Association}, 111:800-812.
+  Association}, \doi{10.1080/01621459.2015.1044091}.
 
   Finley, A.O., A. Datta, B.D. Cook, D.C. Morton, H.E. Andersen, and
   S. Banerjee. (2019) Efficient algorithms for Bayesian Nearest Neighbor
   Gaussian Processes. \emph{Jurnal of Computational and Graphical
-  Statistics}, \url{https://doi.org/10.1080/10618600.2018.1537924}.
+  Statistics}, \doi{10.1080/10618600.2018.1537924}.
 }
 
 \author{
