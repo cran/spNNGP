@@ -1,15 +1,16 @@
 #include <string>
+#include "util.h"
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include <R.h>
 #include <Rmath.h>
 #include <Rinternals.h>
 #include <R_ext/Linpack.h>
 #include <R_ext/Lapack.h>
 #include <R_ext/BLAS.h>
-#include "util.h"
-
-#ifdef _OPENMP
-#include <omp.h>
-#endif
  
 //Description: update replicated data.
 void updateRep(double *B, double *F, int n, double *tmp_m, double *tmp_n, int *nnIndx, int *nnIndxLU){
