@@ -1,8 +1,8 @@
 Package: spNNGP
 Title: Spatial Regression Models for Large Datasets using Nearest
         Neighbor Gaussian Processes
-Version: 0.1.6
-Date: 2021-09-20
+Version: 0.1.7
+Date: 2022-03-16
 Authors@R: c(person("Andrew", "Finley", role=c("aut", "cre"), email="finleya@msu.edu"), person("Abhirup", "Datta", role="aut", email="abhidatta@jhu.edu"), person("Sudipto", "Banerjee", role="aut", email="sudipto@ucla.edu"))
 Maintainer: Andrew Finley <finleya@msu.edu>
 Author: Andrew Finley [aut, cre],
@@ -15,5 +15,6 @@ Encoding: UTF-8
 URL: https://www.finley-lab.com/
 Repository: CRAN
 NeedsCompilation: yes
-Packaged: 2021-09-20 14:27:58 UTC; andy
-Date/Publication: 2021-09-20 14:50:02 UTC
+Packaged: 2022-03-17 14:23:25 UTC; andy
+Date/Publication: 2022-03-17 14:40:02 UTC
+Imports: methods

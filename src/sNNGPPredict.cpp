@@ -139,7 +139,7 @@ extern "C" {
       #endif
     }
 
-    int zIndx = 0;
+    int zIndx = -1;
     double *wZ = (double *) R_alloc(q*nSamples, sizeof(double));
 
     double *yZ = NULL;
@@ -163,7 +163,7 @@ extern "C" {
 
     for(i = 0; i < q; i++){
 #ifdef _OPENMP
-#pragma omp parallel for private(threadID, phi, nu, sigmaSq, tauSq, k, l, d, info) reduction(+:zIndx)
+#pragma omp parallel for private(threadID, phi, nu, sigmaSq, tauSq, k, l, d, info)
 #endif     
       for(s = 0; s < nSamples; s++){
 #ifdef _OPENMP
@@ -198,6 +198,11 @@ extern "C" {
 	  d += tmp_m[threadID*m+k]*w[s*n+nnIndx0[i+q*k]];
 	}
 
+	#ifdef _OPENMP
+        #pragma omp atomic
+        #endif   
+	zIndx++;
+	
 	w0[s*q+i] = sqrt(sigmaSq - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*wZ[zIndx] + d;
 
 	if(family == 1){
@@ -206,7 +211,6 @@ extern "C" {
 	   y0[s*q+i] = F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + w0[s*q+i];
 	}
 	
-	zIndx++;
       }
       
       if(verbose){

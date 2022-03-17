@@ -126,7 +126,7 @@ extern "C" {
     }
     
     double *z = (double *) R_alloc(q*nSamples, sizeof(double));
-    int zIndx = 0;
+    int zIndx = -1;
     GetRNGstate();
     for(i = 0; i < q*nSamples; i++){
       z[i] = rnorm(0.0,1.0);
@@ -135,7 +135,7 @@ extern "C" {
       
     for(i = 0; i < q; i++){
 #ifdef _OPENMP
-#pragma omp parallel for private(threadID, phi, nu, sigmaSq, tauSq, k, l, d, info) reduction(+:zIndx)
+#pragma omp parallel for private(threadID, phi, nu, sigmaSq, tauSq, k, l, d, info)
 #endif     
       for(s = 0; s < nSamples; s++){
 #ifdef _OPENMP
@@ -170,8 +170,12 @@ extern "C" {
 	  d += tmp_m[threadID*m+k]*(y[nnIndx0[i+q*k]] - F77_NAME(ddot)(&p, &X[nnIndx0[i+q*k]], &n, &beta[s*p], &inc));
 	}
 
-	y0[s*q+i] = F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + d + sqrt(sigmaSq + tauSq - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*z[zIndx];
+	#ifdef _OPENMP
+        #pragma omp atomic
+        #endif   
 	zIndx++;
+	
+	y0[s*q+i] = F77_NAME(ddot)(&p, &X0[i], &q, &beta[s*p], &inc) + d + sqrt(sigmaSq + tauSq - F77_NAME(ddot)(&m, &tmp_m[threadID*m], &inc, &c[threadID*m], &inc))*z[zIndx];
 	
       }
 

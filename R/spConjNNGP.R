@@ -25,7 +25,7 @@ spConjNNGP <- function(formula, data = parent.frame(), coords, knots, n.neighbor
     ####################################################
     if(missing(formula)){stop("error: formula must be specified")}
     
-    if(class(formula) == "formula"){
+    if(is(formula, "formula")){
         
         holder <- parseFormula(formula, data)
         y <- as.vector(holder[[1]])
