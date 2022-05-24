@@ -1,3 +1,4 @@
+#define USE_FC_LEN_T
 #include <string>
 #include "util.h"
 
@@ -11,6 +12,9 @@
 #include <R_ext/Linpack.h>
 #include <R_ext/Lapack.h>
 #include <R_ext/BLAS.h>
+#ifndef FCONE
+# define FCONE
+#endif
 
 //Description: update B and F.
 void updateBF(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double *theta, int tauSqIndx, int sigmaSqIndx, int phiIndx, int nuIndx, int covModel, double *bk, int nb){
@@ -51,9 +55,9 @@ void updateBF(double *B, double *F, double *c, double *C, double *coords, int *n
 	    }
 	  }
 	}
-	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotri failed\n");}
-	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc);
+	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
+	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc FCONE);
 	F[i] = theta[sigmaSqIndx] - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[m*threadID], &inc) + theta[tauSqIndx];
       }else{
 	B[i] = 0;
@@ -74,12 +78,7 @@ extern "C" {
     const double one = 1.0;
     const double negOne = -1.0;
     const double zero = 0.0;
-    char const *lower = "L";
-    char const *upper = "U";
     char const *ntran = "N";
-    char const *ytran = "T";
-    char const *rside = "R";
-    char const *lside = "L";
     
     //get args
     double *X = REAL(X_r);
@@ -194,7 +193,7 @@ extern "C" {
       }
 	
       F77_NAME(dcopy)(&n, v, &inc, &REAL(repSamples_r)[s*n], &inc);
-      F77_NAME(dgemv)(ntran, &n, &p, &one, X, &n, &beta[s], &nSamples, &one, &REAL(repSamples_r)[s*n], &inc);
+      F77_NAME(dgemv)(ntran, &n, &p, &one, X, &n, &beta[s], &nSamples, &one, &REAL(repSamples_r)[s*n], &inc FCONE);
             
       //report
       if(status == nReport){

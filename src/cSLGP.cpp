@@ -1,3 +1,4 @@
+#define USE_FC_LEN_T
 #include <string>
 #include "util.h"
 
@@ -11,6 +12,9 @@
 #include <R_ext/Linpack.h>
 #include <R_ext/Lapack.h>
 #include <R_ext/BLAS.h>
+#ifndef FCONE
+# define FCONE
+#endif
 
 //Description: update B and F.
 
@@ -23,11 +27,9 @@ void updateConjBF(double *B, double *F, double *R_iS, double *R_NiS, double *R_N
   double one = 1.0;
   double zero = 0.0;
   char lower = 'L';
-  char upper = 'U';
   char ntran = 'N';
   char ytran = 'T';
   char rside = 'R';
-  char lside = 'L';
   double e, Omega_ii;
   
   //bk must be 1+(int)floor(alpha) * nthread
@@ -46,8 +48,8 @@ void updateConjBF(double *B, double *F, double *R_iS, double *R_NiS, double *R_N
   }
   
   F77_NAME(dcopy)(&rr, R_S, &inc, R_SInv, &inc);//R(S*)^{-1}
-  F77_NAME(dpotrf)(&lower, &r, R_SInv, &r, &info); if(info != 0){error("c++ error: dpotrf failed 1a\n");}
-  F77_NAME(dpotri)(&lower, &r, R_SInv, &r, &info); if(info != 0){error("c++ error: dpotri failed 2a\n");}
+  F77_NAME(dpotrf)(&lower, &r, R_SInv, &r, &info FCONE); if(info != 0){error("c++ error: dpotrf failed 1a\n");}
+  F77_NAME(dpotri)(&lower, &r, R_SInv, &r, &info FCONE); if(info != 0){error("c++ error: dpotri failed 2a\n");}
     
 #ifdef _OPENMP
 #pragma omp parallel for private(k, l, info, threadID, e, Omega_ii)
@@ -64,10 +66,10 @@ void updateConjBF(double *B, double *F, double *R_iS, double *R_NiS, double *R_N
       }
       
       //J_i 1xr
-      F77_NAME(dsymv)(&lower, &r, &one, R_SInv, &r, &R_iS[r*threadID], &inc, &zero, &J_i[r*threadID], &inc);
+      F77_NAME(dsymv)(&lower, &r, &one, R_SInv, &r, &R_iS[r*threadID], &inc, &zero, &J_i[r*threadID], &inc FCONE);
       
       //Omega_ii 1x1
-      F77_NAME(dsymv)(&lower, &r, &one, R_S, &r, &J_i[r*threadID], &inc, &zero, &tmp_r[r*threadID], &inc);
+      F77_NAME(dsymv)(&lower, &r, &one, R_S, &r, &J_i[r*threadID], &inc, &zero, &tmp_r[r*threadID], &inc FCONE);
       Omega_ii = 1.0 + alpha - F77_NAME(ddot)(&r, &tmp_r[r*threadID], &inc, &J_i[r*threadID], &inc);
       
       if(i > 0){
@@ -81,11 +83,11 @@ void updateConjBF(double *B, double *F, double *R_iS, double *R_NiS, double *R_N
       	}
 	
       	//J_Ni = R(N_i, S*) R(S*)^{-1} m(i)xr
-      	F77_NAME(dsymm)(&rside, &lower, &nnIndxLU[n+i], &r, &one, R_SInv, &r, &R_NiS[mr*threadID], &nnIndxLU[n+i], &zero, &J_Ni[mr*threadID], &nnIndxLU[n+i]);
+      	F77_NAME(dsymm)(&rside, &lower, &nnIndxLU[n+i], &r, &one, R_SInv, &r, &R_NiS[mr*threadID], &nnIndxLU[n+i], &zero, &J_Ni[mr*threadID], &nnIndxLU[n+i] FCONE FCONE);
 
       	//J_Ni R(S*) J_Ni^T m(i)xm(i)
-      	F77_NAME(dsymm)(&rside, &lower, &nnIndxLU[n+i], &r, &one, R_S, &r, &J_Ni[mr*threadID], &nnIndxLU[n+i], &zero, &tmp_mr[mr*threadID], &nnIndxLU[n+i]);
-      	F77_NAME(dgemm)(&ntran, &ytran, &nnIndxLU[n+i], &nnIndxLU[n+i], &r, &one, &tmp_mr[mr*threadID], &nnIndxLU[n+i], &J_Ni[mr*threadID], &nnIndxLU[n+i], &zero, &tmp_mm[mm*threadID], &nnIndxLU[n+i]);
+      	F77_NAME(dsymm)(&rside, &lower, &nnIndxLU[n+i], &r, &one, R_S, &r, &J_Ni[mr*threadID], &nnIndxLU[n+i], &zero, &tmp_mr[mr*threadID], &nnIndxLU[n+i] FCONE FCONE);
+      	F77_NAME(dgemm)(&ntran, &ytran, &nnIndxLU[n+i], &nnIndxLU[n+i], &r, &one, &tmp_mr[mr*threadID], &nnIndxLU[n+i], &J_Ni[mr*threadID], &nnIndxLU[n+i], &zero, &tmp_mm[mm*threadID], &nnIndxLU[n+i] FCONE FCONE);
 
       	//R_Ni + alpha I m(i)xm(i)
       	for(k = 0; k < nnIndxLU[n+i]; k++){
@@ -104,8 +106,8 @@ void updateConjBF(double *B, double *F, double *R_iS, double *R_NiS, double *R_N
       	}
 
       	//Omega_iNi 1xm 
-      	//F77_NAME(dsymv)(&lower, &r, &one, R_S, &r, J_i, &inc, &zero, tmp_r, &inc); already calculated above
-      	F77_NAME(dgemv)(&ntran, &nnIndxLU[n+i], &r, &one, &J_Ni[mr*threadID], &nnIndxLU[n+i], &tmp_r[r*threadID], &inc, &zero, &tmp_m[m*threadID], &inc);
+      	//F77_NAME(dsymv)(&lower, &r, &one, R_S, &r, J_i, &inc, &zero, tmp_r, &inc FCONE); already calculated above
+      	F77_NAME(dgemv)(&ntran, &nnIndxLU[n+i], &r, &one, &J_Ni[mr*threadID], &nnIndxLU[n+i], &tmp_r[r*threadID], &inc, &zero, &tmp_m[m*threadID], &inc FCONE);
 	
       	for(k = 0; k < nnIndxLU[n+i]; k++){
       	  e = dist2(coords[i], coords[n+i], coords[nnIndx[nnIndxLU[i]+k]], coords[n+nnIndx[nnIndxLU[i]+k]]);
@@ -113,9 +115,9 @@ void updateConjBF(double *B, double *F, double *R_iS, double *R_NiS, double *R_N
       	}
 	
       	//B_i and F_i
-      	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &Omega_i[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotrf failed 3a\n");}
-	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &Omega_i[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotri failed 4a\n");}
-       	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &Omega_i[mm*threadID], &nnIndxLU[n+i], &Omega_iNi[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc);
+      	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &Omega_i[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotrf failed 3a\n");}
+	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &Omega_i[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotri failed 4a\n");}
+       	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &Omega_i[mm*threadID], &nnIndxLU[n+i], &Omega_iNi[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc FCONE);
        	F[i] = Omega_ii - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &Omega_iNi[m*threadID], &inc);
       }else{
       	B[i] = 0;
@@ -138,12 +140,10 @@ extern "C" {
     const double negOne = -1.0;
     const double zero = 0.0;
     char const *lower = "L";
-    char const *upper = "U";
     char const *ntran = "N";
     char const *ytran = "T";
     char const *rside = "R";
-    char const *lside = "L";
-    
+     
     //get args
     double *y = REAL(y_r);
     double *X = REAL(X_r);
@@ -333,7 +333,7 @@ extern "C" {
       	  tmp_r[l] = spCor(e, phi, nu, covModel, bk);//R(S,S*)
       	}
 
-      	F77_NAME(dsymv)(lower, &r, &one, R_SInv, &r, tmp_r, &inc, &zero, &XStr[p*n+i], &n);
+      	F77_NAME(dsymv)(lower, &r, &one, R_SInv, &r, tmp_r, &inc, &zero, &XStr[p*n+i], &n FCONE);
       }
 
       //estimation
@@ -352,11 +352,11 @@ extern "C" {
       //b = V_beta*^{-1}mu_beta* + X*'Omega^{-1}y but mu_beta* will be zero
 
       //V = inv(B), V = inv(tmp_qq), V = tmp_qq after dpotri
-      F77_NAME(dpotrf)(lower, &q, tmp_qq, &q, &info); if(info != 0){error("c++ error: dpotrf failed 5\n");}
-      F77_NAME(dpotri)(lower, &q, tmp_qq, &q, &info); if(info != 0){error("c++ error: dpotri failed 6\n");}
+      F77_NAME(dpotrf)(lower, &q, tmp_qq, &q, &info FCONE); if(info != 0){error("c++ error: dpotrf failed 5\n");}
+      F77_NAME(dpotri)(lower, &q, tmp_qq, &q, &info FCONE); if(info != 0){error("c++ error: dpotri failed 6\n");}
 
       //g = solve(B, v), g = solve(tmp_pp, tmp_p), g = beta
-      F77_NAME(dsymv)(lower, &q, &one, tmp_qq, &q, tmp_q, &inc, &zero, &beta[k*q], &inc);
+      F77_NAME(dsymv)(lower, &q, &one, tmp_qq, &q, tmp_q, &inc, &zero, &beta[k*q], &inc FCONE);
 
       //a 
       ab[k*2] = sigmaSqIGa + 1.0*n/2.0;
@@ -386,10 +386,10 @@ extern "C" {
 	}
       
 	//J_i 1xr
-	F77_NAME(dsymv)(lower, &r, &one, R_SInv, &r, &R_iS[r*threadID], &inc, &zero, &J_i[r*threadID], &inc);
+	F77_NAME(dsymv)(lower, &r, &one, R_SInv, &r, &R_iS[r*threadID], &inc, &zero, &J_i[r*threadID], &inc FCONE);
 
 	//Omega_ii 1x1
-	F77_NAME(dsymv)(lower, &r, &one, R_S, &r, &J_i[r*threadID], &inc, &zero, &tmp_r[r*threadID], &inc);
+	F77_NAME(dsymv)(lower, &r, &one, R_S, &r, &J_i[r*threadID], &inc, &zero, &tmp_r[r*threadID], &inc FCONE);
 	Omega_ii = 1.0 + alpha - F77_NAME(ddot)(&r, &tmp_r[r*threadID], &inc, &J_i[r*threadID], &inc);
 	
 	//R(N_i, S*) mxr
@@ -401,12 +401,12 @@ extern "C" {
 	}
 	
 	//J_Ni = R(N_i, S*) R(S*)^{-1} mxr
-	F77_NAME(dsymm)(rside, lower, &m, &r, &one, R_SInv, &r, &R_NiS[mr*threadID], &m, &zero, &J_Ni[mr*threadID], &m);
+	F77_NAME(dsymm)(rside, lower, &m, &r, &one, R_SInv, &r, &R_NiS[mr*threadID], &m, &zero, &J_Ni[mr*threadID], &m FCONE FCONE);
 
 	//for Omega_i mxm
 	//J_Ni R(S*) J_Ni^T mxm
-	F77_NAME(dsymm)(rside, lower, &m, &r, &one, R_S, &r, &J_Ni[mr*threadID], &m, &zero, &tmp_mr[mr*threadID], &m);
-	F77_NAME(dgemm)(ntran, ytran, &m, &m, &r, &one, &tmp_mr[mr*threadID], &m, &J_Ni[mr*threadID], &m, &zero, &tmp_mm[mm*threadID], &m);
+	F77_NAME(dsymm)(rside, lower, &m, &r, &one, R_S, &r, &J_Ni[mr*threadID], &m, &zero, &tmp_mr[mr*threadID], &m FCONE FCONE);
+	F77_NAME(dgemm)(ntran, ytran, &m, &m, &r, &one, &tmp_mr[mr*threadID], &m, &J_Ni[mr*threadID], &m, &zero, &tmp_mm[mm*threadID], &m FCONE FCONE);
 
 	//R_Ni + alpha I mxm
 	for(j = 0; j < m; j++){
@@ -424,8 +424,8 @@ extern "C" {
 	}
 
 	//Omega_iNi 1xm (this is z)
-	F77_NAME(dsymv)(lower, &r, &one, R_S, &r, &J_i[r*threadID], &inc, &zero, &tmp_r[r*threadID], &inc); 
-	F77_NAME(dgemv)(ntran, &m, &r, &one, &J_Ni[mr*threadID], &m, &tmp_r[r*threadID], &inc, &zero, &tmp_m[m*threadID], &inc);//(J_i R_S) J_Ni^T
+	F77_NAME(dsymv)(lower, &r, &one, R_S, &r, &J_i[r*threadID], &inc, &zero, &tmp_r[r*threadID], &inc FCONE); 
+	F77_NAME(dgemv)(ntran, &m, &r, &one, &J_Ni[mr*threadID], &m, &tmp_r[r*threadID], &inc, &zero, &tmp_m[m*threadID], &inc FCONE);//(J_i R_S) J_Ni^T
 	
 	for(j = 0; j < m; j++){
 	  e = dist2(coords0[i], coords0[n0+i], coords[nnIndx0[j*n0+i]], coords[n+nnIndx0[j*n0+i]]);//R_iNi
@@ -433,9 +433,9 @@ extern "C" {
 	}
 	
 	//solve for w
-	F77_NAME(dpotrf)(lower, &m, &Omega_i[mm*threadID], &m, &info); if(info != 0){error("c++ error: dpotrf failed 3\n");}
-	F77_NAME(dpotri)(lower, &m, &Omega_i[mm*threadID], &m, &info); if(info != 0){error("c++ error: dpotri failed 4\n");}
-	F77_NAME(dsymv)(lower, &m, &one, &Omega_i[mm*threadID], &m, &Omega_iNi[m*threadID], &inc, &zero, &w[m*threadID], &inc);
+	F77_NAME(dpotrf)(lower, &m, &Omega_i[mm*threadID], &m, &info FCONE); if(info != 0){error("c++ error: dpotrf failed 3\n");}
+	F77_NAME(dpotri)(lower, &m, &Omega_i[mm*threadID], &m, &info FCONE); if(info != 0){error("c++ error: dpotri failed 4\n");}
+	F77_NAME(dsymv)(lower, &m, &one, &Omega_i[mm*threadID], &m, &Omega_iNi[m*threadID], &inc, &zero, &w[m*threadID], &inc FCONE);
 	
       	//make hat(y)
       	for(j = 0; j < m; j++){
@@ -453,14 +453,14 @@ extern "C" {
 	  F77_NAME(dcopy)(&q, &XStr[nnIndx0[j*n0+i]], &n, &tmp_mq[mq*threadID+j], &m);
 	}
 
-	F77_NAME(dgemv)(ytran, &m, &q, &one, &tmp_mq[mq*threadID], &m, &w[m*threadID], &inc, &zero, &tmp_q2[q*threadID], &inc);//X*[N(s0),]w //note typo in FDB et al. 2019, dot should be dgemv
+	F77_NAME(dgemv)(ytran, &m, &q, &one, &tmp_mq[mq*threadID], &m, &w[m*threadID], &inc, &zero, &tmp_q2[q*threadID], &inc FCONE);//X*[N(s0),]w //note typo in FDB et al. 2019, dot should be dgemv
 
 	for(j = 0; j < q; j++){
 	  tmp_q[q*threadID+j] = tmp_q[q*threadID+j] - tmp_q2[q*threadID+j];
 	}
 
 	//make v_y and var(y)
-	F77_NAME(dsymv)(lower, &q, &one, tmp_qq, &q, &tmp_q[q*threadID], &inc, &zero, &tmp_q2[q*threadID], &inc);
+	F77_NAME(dsymv)(lower, &q, &one, tmp_qq, &q, &tmp_q[q*threadID], &inc, &zero, &tmp_q2[q*threadID], &inc FCONE);
 
 	y0HatVar[k*n0+i] = ab[k*2+1] * (F77_NAME(ddot)(&q, &tmp_q[q*threadID], &inc, &tmp_q2[q*threadID], &inc) + Omega_ii - F77_NAME(ddot)(&m, &w[m*threadID], &inc, &Omega_iNi[m*threadID], &inc))/(ab[k*2]-1.0);
        

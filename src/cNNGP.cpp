@@ -1,3 +1,4 @@
+#define USE_FC_LEN_T
 #include <string>
 #include "util.h"
 
@@ -11,6 +12,9 @@
 #include <R_ext/Linpack.h>
 #include <R_ext/Lapack.h>
 #include <R_ext/BLAS.h>
+#ifndef FCONE
+# define FCONE
+#endif
 
 //Description: update B and F.
 void updateConjBF(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double phi, double alpha, double nu, int covModel, double *bk, double nuMax){
@@ -21,7 +25,7 @@ void updateConjBF(double *B, double *F, double *c, double *C, double *coords, in
   double one = 1.0;
   double zero = 0.0;
   char lower = 'L';
-
+   
   //bk must be 1+(int)floor(alpha) * nthread
   int nb = 1+static_cast<int>(floor(nuMax));
   int threadID = 0;
@@ -48,9 +52,9 @@ void updateConjBF(double *B, double *F, double *c, double *C, double *coords, in
 	  }
 	}
 	
-	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info); if(info != 0){error("c++ error: dpotri failed\n");}
-	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc);
+	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
+	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc FCONE);
 	F[i] = 1.0 + alpha - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[m*threadID], &inc);
       }else{
 	B[i] = 0;
@@ -72,11 +76,7 @@ extern "C" {
     const double negOne = -1.0;
     const double zero = 0.0;
     char const *lower = "L";
-    char const *upper = "U";
-    char const *ntran = "N";
     char const *ytran = "T";
-    char const *rside = "R";
-    char const *lside = "L";
     
     //get args
     double *y = REAL(y_r);
@@ -228,11 +228,11 @@ extern "C" {
       }
 
       //V = inv(B), V = inv(tmp_pp), V = tmp_pp after dpotri
-      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info); if(info != 0){error("c++ error: dpotri failed\n");}
+      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
+      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
 
       //g = solve(B, v), g = solve(tmp_pp, tmp_p), g = beta
-      F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, &beta[k*p], &inc);
+      F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, &beta[k*p], &inc FCONE);
 
       //a 
       ab[k*2] = sigmaSqIGa + 1.0*n/2.0;
@@ -266,9 +266,9 @@ extern "C" {
 	}
 
 	//make w
-	F77_NAME(dpotrf)(lower, &m, &C0[mm*threadID], &m, &info); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(lower, &m, &C0[mm*threadID], &m, &info); if(info != 0){error("c++ error: dpotri failed\n");}
-	F77_NAME(dsymv)(lower, &m, &one, &C0[mm*threadID], &m, &c0[m*threadID], &inc, &zero, &w[m*threadID], &inc);
+	F77_NAME(dpotrf)(lower, &m, &C0[mm*threadID], &m, &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
+	F77_NAME(dpotri)(lower, &m, &C0[mm*threadID], &m, &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dsymv)(lower, &m, &one, &C0[mm*threadID], &m, &c0[m*threadID], &inc, &zero, &w[m*threadID], &inc FCONE);
 	
 	//make hat(y)
 	for(j = 0; j < m; j++){
@@ -282,14 +282,14 @@ extern "C" {
 	  F77_NAME(dcopy)(&p, &X[nnIndx0[j*n0+i]], &n, &tmp_mp[mp*threadID+j], &m);
 	}
 	
-	F77_NAME(dgemv)(ytran, &m, &p, &one, &tmp_mp[mp*threadID], &m, &w[m*threadID], &inc, &zero, &tmp_p[p*threadID], &inc);
+	F77_NAME(dgemv)(ytran, &m, &p, &one, &tmp_mp[mp*threadID], &m, &w[m*threadID], &inc, &zero, &tmp_p[p*threadID], &inc FCONE);
 	
 	for(j = 0; j < p; j++){
 	  tmp_p[p*threadID+j] = X0[j*n0+i] - tmp_p[p*threadID+j];
 	}
 	
 	//make v_y and var(y)
-	F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, &tmp_p[p*threadID], &inc, &zero, &tmp_p2[p*threadID], &inc);
+	F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, &tmp_p[p*threadID], &inc, &zero, &tmp_p2[p*threadID], &inc FCONE);
 	
 	y0HatVar[k*n0+i] = ab[k*2+1] * (F77_NAME(ddot)(&p, &tmp_p[p*threadID], &inc, &tmp_p2[p*threadID], &inc) + 1.0 + alpha - F77_NAME(ddot)(&m, &w[m*threadID], &inc, &c0[m*threadID], &inc))/(ab[k*2]-1.0);
 
