@@ -196,6 +196,10 @@ in the \code{starting} and \code{tuning} lists.
 }
 
 \references{
+  Finley, A.O., A. Datta, S. Banerjee (2022) spNNGP R Package for
+  Nearest Neighbor Gaussian Process Models. \emph{Journal of Statistical
+  Software}, \doi{10.18637/jss.v103.i05}.
+  
   Datta, A., S. Banerjee, A.O. Finley, and A.E. Gelfand. (2016)
   Hierarchical Nearest-Neighbor Gaussian process models for large
   geostatistical datasets. \emph{Journal of the American Statistical

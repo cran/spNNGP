@@ -55,7 +55,9 @@
 
 
 \references{
-  Spiegelhalter, D.J., Best, N.G., Carlin, B.P., van der Linde, A. (2002). Bayesian measures of model complexity and fit (with discussion). \emph{Journal of the Royal Statistical Society, Series B.}, 64:583-639.
+  Finley, A.O., A. Datta, S. Banerjee (2022) spNNGP R Package for
+  Nearest Neighbor Gaussian Process Models. \emph{Journal of Statistical
+  Software}, \doi{10.18637/jss.v103.i05}.
   
   Gelfand A.E. and Ghosh, S.K. (1998). Model choice: a minimum posterior
   predictive loss approach. \emph{Biometrika}, 85:1-11.
@@ -66,6 +68,8 @@
 
   Gneiting, T. and Raftery, A.E. (2007). Strictly proper scoring rules, prediction, and estimation.
   \emph{Journal of the American Statistical Association}, 102:359-378.
+
+  Spiegelhalter, D.J., Best, N.G., Carlin, B.P., van der Linde, A. (2002). Bayesian measures of model complexity and fit (with discussion). \emph{Journal of the Royal Statistical Society, Series B.}, 64:583-639.
     
 }
 

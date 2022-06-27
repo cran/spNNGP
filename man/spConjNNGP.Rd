@@ -192,6 +192,10 @@
   geostatistical datasets. \emph{Journal of the American Statistical
   Association}, \doi{10.1080/01621459.2015.1044091}.
 
+  Finley, A.O., A. Datta, S. Banerjee (2022) spNNGP R Package for
+  Nearest Neighbor Gaussian Process Models. \emph{Journal of Statistical
+  Software}, \doi{10.18637/jss.v103.i05}.
+
   Finley, A.O., A. Datta, B.D. Cook, D.C. Morton, H.E. Andersen, and
   S. Banerjee. (2019) Efficient algorithms for Bayesian Nearest Neighbor
   Gaussian Processes. \emph{Journal of Computational and Graphical

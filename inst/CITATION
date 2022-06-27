@@ -1,0 +1,20 @@
+bibentry(bibtype = "Article",
+  title        = "{spNNGP} {R} Package for Nearest Neighbor {G}aussian Process Models",
+  author       = c(person(given = c("Andrew", "O."),
+                          family = "Finley",
+                          email = "finleya@msu.edu"),
+                   person(given = "Abhirup",
+                          family = "Datta",
+                          email = "abhidatta@jhu.edu"),
+                   person(given = "Sudipto",
+                          family = "Banerjee",
+                          email = "sudipto@ucla.edu")),
+  journal      = "Journal of Statistical Software",
+  year         = "2022",
+  volume       = "103",
+  number       = "5",
+  pages        = "1--40",
+  doi          = "10.18637/jss.v103.i05",
+  header       = "To cite spNNGP in publications use:"
+)
+
