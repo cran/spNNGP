@@ -1,3 +1,7 @@
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+
 #include <string>
 
 void zeros(double *a, int n);
@@ -21,7 +25,7 @@ void getNNIndx(int i, int m, int &iNNIndx, int &iNN);
 //Output:
 //uIndx = holds the indexes for locations that have each location as a neighbor
 //uIndxLU = nx2 look-up matrix with row values correspond to each location's index in uIndx and number of neighbors (columns 1 and 2, respectively)
-//Note: uIndx must be of length (1+m)/2*m+(n-m-1)*m on input. uINdxLU must also be allocated on input.
+//Note: uIndx must be of Rf_length (1+m)/2*m+(n-m-1)*m on input. uINdxLU must also be allocated on input.
 void mkUIndx0(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU);
 void mkUIndx1(int n, int m, int* nnIndx, int* uIndx, int* uIndxLU);
 void mkUIndx2(int n, int m, int* nnIndx, int *nnIndxLU, int* uIndx, int* uIndxLU);

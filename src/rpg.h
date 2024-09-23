@@ -1,3 +1,7 @@
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+
 double exprnd(double mu);
 double aterm(int n, double x, double t);
 double randinvg(double mu);

@@ -1,3 +1,7 @@
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+
 #define USE_FC_LEN_T
 #include <string>
 #include <limits>
@@ -196,7 +200,7 @@ std::string getCorName(int i){
   }else if(i == 3){
     return "gaussian";
   }else{
-    error("c++ error: cov.model is not correctly specified");
+    Rf_error("c++ Rf_error: cov.model is not correctly specified");
   }
   
 }
@@ -236,11 +240,11 @@ double spCor(double &D, double &phi, double &nu, int &covModel, double *bk){
     return exp(-1.0*(pow(phi*D,2)));
       
   }else{
-    error("c++ error: cov.model is not correctly specified");
+    Rf_error("c++ Rf_error: cov.model is not correctly specified");
   }
 }
 
-//which index of b equals a, where b is of length n
+//which index of b equals a, where b is of Rf_length n
 int which(int a, int *b, int n){
   int i;
   for(i = 0; i < n; i++){
@@ -249,7 +253,7 @@ int which(int a, int *b, int n){
     }
   }
 
-  error("c++ error: which failed");
+  Rf_error("c++ Rf_error: which failed");
   return -9999;
 }
 

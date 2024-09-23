@@ -1,3 +1,7 @@
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+
 #define USE_FC_LEN_T
 #include <string>
 #include "util.h"
@@ -52,8 +56,8 @@ void updateConjBF(double *B, double *F, double *c, double *C, double *coords, in
 	  }
 	}
 	
-	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotrf failed\n");}
+	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotri failed\n");}
 	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc FCONE);
 	F[i] = 1.0 + alpha - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[m*threadID], &inc);
       }else{
@@ -105,7 +109,7 @@ extern "C" {
     omp_set_num_threads(nThreads);
 #else
     if(nThreads > 1){
-      warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
+      Rf_warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
       nThreads = 1;
     }
 #endif
@@ -163,12 +167,12 @@ extern "C" {
     //return stuff
     int pp = p*p;
     SEXP beta_r, ab_r, bBInv_r, bb_r, y0Hat_r, y0HatVar_r;
-    PROTECT(beta_r = allocMatrix(REALSXP, p, g)); nProtect++;
-    PROTECT(ab_r = allocMatrix(REALSXP, nTheta, g)); nProtect++;
-    PROTECT(bBInv_r = allocMatrix(REALSXP, pp, g)); nProtect++;
-    PROTECT(bb_r = allocMatrix(REALSXP, p, g)); nProtect++;
-    PROTECT(y0Hat_r = allocMatrix(REALSXP, n0, g)); nProtect++;
-    PROTECT(y0HatVar_r = allocMatrix(REALSXP, n0, g)); nProtect++;
+    PROTECT(beta_r = Rf_allocMatrix(REALSXP, p, g)); nProtect++;
+    PROTECT(ab_r = Rf_allocMatrix(REALSXP, nTheta, g)); nProtect++;
+    PROTECT(bBInv_r = Rf_allocMatrix(REALSXP, pp, g)); nProtect++;
+    PROTECT(bb_r = Rf_allocMatrix(REALSXP, p, g)); nProtect++;
+    PROTECT(y0Hat_r = Rf_allocMatrix(REALSXP, n0, g)); nProtect++;
+    PROTECT(y0HatVar_r = Rf_allocMatrix(REALSXP, n0, g)); nProtect++;
 
     double *beta = REAL(beta_r);
     double *ab = REAL(ab_r);
@@ -228,8 +232,8 @@ extern "C" {
       }
 
       //V = inv(B), V = inv(tmp_pp), V = tmp_pp after dpotri
-      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
-      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
+      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotrf failed\n");}
+      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotri failed\n");}
 
       //g = solve(B, v), g = solve(tmp_pp, tmp_p), g = beta
       F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, &beta[k*p], &inc FCONE);
@@ -266,8 +270,8 @@ extern "C" {
 	}
 
 	//make w
-	F77_NAME(dpotrf)(lower, &m, &C0[mm*threadID], &m, &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(lower, &m, &C0[mm*threadID], &m, &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dpotrf)(lower, &m, &C0[mm*threadID], &m, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotrf failed\n");}
+	F77_NAME(dpotri)(lower, &m, &C0[mm*threadID], &m, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotri failed\n");}
 	F77_NAME(dsymv)(lower, &m, &one, &C0[mm*threadID], &m, &c0[m*threadID], &inc, &zero, &w[m*threadID], &inc FCONE);
 	
 	//make hat(y)
@@ -321,30 +325,30 @@ extern "C" {
 
     i = 0;
     
-    PROTECT(result_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
-    PROTECT(resultName_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
+    PROTECT(result_r = Rf_allocVector(VECSXP, nResultListObjs)); nProtect++;
+    PROTECT(resultName_r = Rf_allocVector(VECSXP, nResultListObjs)); nProtect++;
     
     SET_VECTOR_ELT(result_r, 0, beta_r);
-    SET_VECTOR_ELT(resultName_r, 0, mkChar("beta.hat")); 
+    SET_VECTOR_ELT(resultName_r, 0, Rf_mkChar("beta.hat")); 
 
     SET_VECTOR_ELT(result_r, 1, ab_r);
-    SET_VECTOR_ELT(resultName_r, 1, mkChar("ab")); 
+    SET_VECTOR_ELT(resultName_r, 1, Rf_mkChar("ab")); 
     
     SET_VECTOR_ELT(result_r, 2, bBInv_r);
-    SET_VECTOR_ELT(resultName_r, 2, mkChar("bB.inv"));
+    SET_VECTOR_ELT(resultName_r, 2, Rf_mkChar("bB.inv"));
     
     SET_VECTOR_ELT(result_r, 3, bb_r);
-    SET_VECTOR_ELT(resultName_r, 3, mkChar("bb"));
+    SET_VECTOR_ELT(resultName_r, 3, Rf_mkChar("bb"));
         
     if(n0 > 0){
       SET_VECTOR_ELT(result_r, 4, y0Hat_r);
-      SET_VECTOR_ELT(resultName_r, 4, mkChar("y.0.hat"));
+      SET_VECTOR_ELT(resultName_r, 4, Rf_mkChar("y.0.hat"));
       
       SET_VECTOR_ELT(result_r, 5, y0HatVar_r);
-      SET_VECTOR_ELT(resultName_r, 5, mkChar("y.0.hat.var")); 
+      SET_VECTOR_ELT(resultName_r, 5, Rf_mkChar("y.0.hat.var")); 
     }
     
-    namesgets(result_r, resultName_r);
+    Rf_namesgets(result_r, resultName_r);
     
     //unprotect
     UNPROTECT(nProtect);

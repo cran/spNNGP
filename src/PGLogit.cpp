@@ -1,3 +1,7 @@
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+
 #define USE_FC_LEN_T
 #include <string>
 #include "util.h"
@@ -45,7 +49,7 @@ extern "C" {
     omp_set_num_threads(nThreads);
 #else
     if(nThreads > 1){
-      warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
+      Rf_warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
       nThreads = 1;
     }
 #endif
@@ -73,7 +77,7 @@ extern "C" {
 
     //return stuff  
     SEXP betaSamples_r;
-    PROTECT(betaSamples_r = allocMatrix(REALSXP, p, nSamples)); nProtect++;
+    PROTECT(betaSamples_r = Rf_allocMatrix(REALSXP, p, nSamples)); nProtect++;
     
     //other stuff
     int pp = p*p;
@@ -112,10 +116,10 @@ extern "C" {
 
       F77_NAME(dgemm)(ytran, ntran, &p, &p, &n, &one, X, &n, tmp_np, &n, &zero, tmp_pp, &p FCONE FCONE);
 
-      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){error("c++ error: dpotrf here failed\n");}
-      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){error("c++ error: dpotri here failed\n");}
+      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotrf here failed\n");}
+      F77_NAME(dpotri)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotri here failed\n");}
       F77_NAME(dsymv)(lower, &p, &one, tmp_pp, &p, tmp_p, &inc, &zero, tmp_p2, &inc FCONE);
-      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){error("c++ error: dpotrf here failed\n");}
+      F77_NAME(dpotrf)(lower, &p, tmp_pp, &p, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotrf here failed\n");}
       mvrnorm(beta, tmp_p2, tmp_pp, p);
 
       //save samples  
@@ -130,13 +134,13 @@ extern "C" {
     SEXP result_r, resultName_r;
     int nResultListObjs = 1;
 
-    PROTECT(result_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
-    PROTECT(resultName_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
+    PROTECT(result_r = Rf_allocVector(VECSXP, nResultListObjs)); nProtect++;
+    PROTECT(resultName_r = Rf_allocVector(VECSXP, nResultListObjs)); nProtect++;
 
     SET_VECTOR_ELT(result_r, 0, betaSamples_r);
-    SET_VECTOR_ELT(resultName_r, 0, mkChar("p.beta.samples")); 
+    SET_VECTOR_ELT(resultName_r, 0, Rf_mkChar("p.beta.samples")); 
     
-    namesgets(result_r, resultName_r);
+    Rf_namesgets(result_r, resultName_r);
     
     //unprotect
     UNPROTECT(nProtect);

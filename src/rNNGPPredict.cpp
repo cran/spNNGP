@@ -1,3 +1,7 @@
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+
 #define USE_FC_LEN_T
 #include <string>
 #include "util.h"
@@ -56,7 +60,7 @@ extern "C" {
     omp_set_num_threads(nThreads);
 #else
     if(nThreads > 1){
-      warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
+      Rf_warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
       nThreads = 1;
     }
 #endif
@@ -112,7 +116,7 @@ extern "C" {
     int threadID = 0, status = 0;
     
     SEXP y0_r;
-    PROTECT(y0_r = allocMatrix(REALSXP, q, nSamples)); nProtect++; 
+    PROTECT(y0_r = Rf_allocMatrix(REALSXP, q, nSamples)); nProtect++; 
     double *y0 = REAL(y0_r);
 
     if(verbose){
@@ -159,8 +163,8 @@ extern "C" {
 	  }
 	}
 
-	F77_NAME(dpotrf)(lower, &m, &C[threadID*mm], &m, &info FCONE); if(info != 0){error("c++ error: dpotrf failed\n");}
-	F77_NAME(dpotri)(lower, &m, &C[threadID*mm], &m, &info FCONE); if(info != 0){error("c++ error: dpotri failed\n");}
+	F77_NAME(dpotrf)(lower, &m, &C[threadID*mm], &m, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotrf failed\n");}
+	F77_NAME(dpotri)(lower, &m, &C[threadID*mm], &m, &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotri failed\n");}
 
 	F77_NAME(dsymv)(lower, &m, &one, &C[threadID*mm], &m, &c[threadID*m], &inc, &zero, &tmp_m[threadID*m], &inc FCONE);
 
@@ -202,13 +206,13 @@ extern "C" {
     SEXP result_r, resultName_r;
     int nResultListObjs = 1;
 
-    PROTECT(result_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
-    PROTECT(resultName_r = allocVector(VECSXP, nResultListObjs)); nProtect++;
+    PROTECT(result_r = Rf_allocVector(VECSXP, nResultListObjs)); nProtect++;
+    PROTECT(resultName_r = Rf_allocVector(VECSXP, nResultListObjs)); nProtect++;
 
     SET_VECTOR_ELT(result_r, 0, y0_r);
-    SET_VECTOR_ELT(resultName_r, 0, mkChar("p.y.0")); 
+    SET_VECTOR_ELT(resultName_r, 0, Rf_mkChar("p.y.0")); 
     
-    namesgets(result_r, resultName_r);
+    Rf_namesgets(result_r, resultName_r);
     
     //unprotect
     UNPROTECT(nProtect);

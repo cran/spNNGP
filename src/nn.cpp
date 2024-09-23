@@ -1,3 +1,7 @@
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+
 #include <iomanip>
 #include <string>
 #include <limits>
@@ -73,7 +77,7 @@ SEXP mkNNIndx(SEXP n_r, SEXP m_r, SEXP coords_r, SEXP nnIndx_r, SEXP nnDist_r, S
   omp_set_num_threads(nThreads);
 #else
   if(nThreads > 1){
-    warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
+    Rf_warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
     nThreads = 1;
   }
 #endif
@@ -115,11 +119,11 @@ SEXP mkNNIndx(SEXP n_r, SEXP m_r, SEXP coords_r, SEXP nnIndx_r, SEXP nnDist_r, S
 //Input:
 //ui = is the index for which we need the m nearest neighbors
 //m = number of nearest neighbors
-//n = number of observations, i.e., length of u
-//sIndx = the NNGP ordering index of length n that is pre-sorted by u
+//n = number of observations, i.e., Rf_length of u
+//sIndx = the NNGP ordering index of Rf_length n that is pre-sorted by u
 //u = x+y vector of coordinates assumed sorted on input
-//rSIndx = vector or pointer to a vector to store the resulting nn sIndx (this is at most length m for ui >= m)
-//rNNDist = vector or point to a vector to store the resulting nn Euclidean distance (this is at most length m for ui >= m)  
+//rSIndx = vector or pointer to a vector to store the resulting nn sIndx (this is at most Rf_length m for ui >= m)
+//rNNDist = vector or point to a vector to store the resulting nn Euclidean distance (this is at most Rf_length m for ui >= m)  
 
 double dmi(double *x, double *c, int inc){
     return pow(x[0]+x[inc]-c[0]-c[inc], 2);
@@ -221,7 +225,7 @@ extern "C" {
     omp_set_num_threads(nThreads);
 #else
     if(nThreads > 1){
-      warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
+      Rf_warning("n.omp.threads > %i, but source not compiled with OpenMP support.", nThreads);
       nThreads = 1;
     }
 #endif
