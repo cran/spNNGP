@@ -1,8 +1,8 @@
 Package: spNNGP
 Title: Spatial Regression Models for Large Datasets using Nearest
         Neighbor Gaussian Processes
-Version: 1.0.1
-Date: 2024-09-23
+Version: 1.0.2
+Date: 2026-05-27
 Authors@R: c(person("Andrew", "Finley", role=c("aut", "cre"), email="finleya@msu.edu"), person("Abhirup", "Datta", role="aut", email="abhidatta@jhu.edu"), person("Sudipto", "Banerjee", role="aut", email="sudipto@ucla.edu"))
 Maintainer: Andrew Finley <finleya@msu.edu>
 Author: Andrew Finley [aut, cre],
@@ -12,9 +12,13 @@ Depends: R (>= 3.5.0), coda, Formula, RANN
 Description: Fits univariate Bayesian spatial regression models for large datasets using Nearest Neighbor Gaussian Processes (NNGP) detailed in Finley, Datta, Banerjee (2022) <doi:10.18637/jss.v103.i05>, Finley, Datta, Cook, Morton, Andersen, and Banerjee (2019) <doi:10.1080/10618600.2018.1537924>, and Datta, Banerjee, Finley, and Gelfand (2016) <doi:10.1080/01621459.2015.1044091>.
 License: GPL (>= 2)
 Encoding: UTF-8
-URL: https://www.finley-lab.com/
+URL: https://www.finley-lab.com/, https://github.com/finleya/spNNGP,
+        https://finleya.github.io/spNNGP/
+BugReports: https://github.com/finleya/spNNGP/issues
 Repository: CRAN
 NeedsCompilation: yes
-Packaged: 2024-09-23 17:54:36 UTC; andy
-Date/Publication: 2024-09-23 18:20:02 UTC
+Packaged: 2026-05-27 01:50:06 UTC; andy
+Date/Publication: 2026-05-28 05:10:04 UTC
 Imports: methods
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3

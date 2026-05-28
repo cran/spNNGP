@@ -36,6 +36,7 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     
     p <- ncol(X)
     n <- nrow(X)
+    method <- tolower(method)
     
     ##Coords
     if(missing(coords)){stop("error: coords must be specified")}
@@ -111,6 +112,13 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
         nn.indx.lu <- neighbor.info$nn.indx.lu
         ord <- neighbor.info$ord
         n.neighbors <- neighbor.info$n.neighbors
+        if(!is.numeric(n.neighbors) || length(n.neighbors) != 1 || is.na(n.neighbors) || n.neighbors != as.integer(n.neighbors)){
+            stop("error: n.neighbors must be a single positive integer")
+        }
+        if(n.neighbors < 1 || n.neighbors >= n){
+            stop("error: n.neighbors must be between 1 and n-1")
+        }
+        n.neighbors <- as.integer(n.neighbors)
         nn.indx.run.time <- neighbor.info$nn.indx.run.time
         neighbor.info.provided <- TRUE
 
@@ -163,12 +171,24 @@ spNNGP <- function(formula, data = parent.frame(), coords, method = "response", 
     method <- tolower(method)
     
     if(!method%in%method.names){stop("error: specified method '",method,"' is not a valid option; choose from ", paste(method.names, collapse=", ", sep="") ,".")}
+    if(!is.numeric(n.neighbors) || length(n.neighbors) != 1 || is.na(n.neighbors) || n.neighbors != as.integer(n.neighbors)){
+        stop("error: n.neighbors must be a single positive integer")
+    }
+    if(n.neighbors < 1 || n.neighbors >= n){
+        stop("error: n.neighbors must be between 1 and n-1")
+    }
+    if(!is.numeric(n.omp.threads) || length(n.omp.threads) != 1 || is.na(n.omp.threads) || n.omp.threads != as.integer(n.omp.threads)){
+        stop("error: n.omp.threads must be a single positive integer")
+    }
+    if(n.omp.threads < 1){
+        stop("error: n.omp.threads must be a positive integer")
+    }
+    n.neighbors <- as.integer(n.neighbors)
+    n.omp.threads <- as.integer(n.omp.threads)
 
     ####################################################
     ##Covariance model
     ####################################################
-    if(missing(cov.model)){stop("error: cov.model must be specified")}
-
     cov.model.names <- c("exponential","spherical","matern","gaussian")##order much match util.cpp spCor
     
     if(!cov.model%in%cov.model.names)

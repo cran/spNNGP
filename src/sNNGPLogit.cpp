@@ -22,7 +22,7 @@
 #endif
 
 //Description: update B and F.
-void updateBF1(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double sigmaSq, double phi, double nu, int covModel, double *bk, double nuUnifb){
+int updateBF1(double *B, double *F, double *c, double *C, double *coords, int *nnIndx, int *nnIndxLU, int n, int m, double sigmaSq, double phi, double nu, int covModel, double *bk, double nuUnifb){
     
   int i, k, l;
   int info = 0;
@@ -36,6 +36,7 @@ void updateBF1(double *B, double *F, double *c, double *C, double *coords, int *
   int threadID = 0;
   double e;
   int mm = m*m;
+  int status = 0;
   
 #ifdef _OPENMP
 #pragma omp parallel for private(k, l, info, threadID, e)
@@ -53,8 +54,26 @@ void updateBF1(double *B, double *F, double *c, double *C, double *coords, int *
 	    C[mm*threadID+l*nnIndxLU[n+i]+k] = sigmaSq*spCor(e, phi, nu, covModel, &bk[threadID*nb]); 
 	  }
 	}
-	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotrf failed\n");}
-	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE); if(info != 0){Rf_error("c++ Rf_error: dpotri failed\n");}
+	F77_NAME(dpotrf)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE);
+	if(info != 0){
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+	  {
+	    if(status == 0){status = info;}
+	  }
+	  continue;
+	}
+	F77_NAME(dpotri)(&lower, &nnIndxLU[n+i], &C[mm*threadID], &nnIndxLU[n+i], &info FCONE);
+	if(info != 0){
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+	  {
+	    if(status == 0){status = info;}
+	  }
+	  continue;
+	}
 	F77_NAME(dsymv)(&lower, &nnIndxLU[n+i], &one, &C[mm*threadID], &nnIndxLU[n+i], &c[m*threadID], &inc, &zero, &B[nnIndxLU[i]], &inc FCONE);
 	F[i] = sigmaSq - F77_NAME(ddot)(&nnIndxLU[n+i], &B[nnIndxLU[i]], &inc, &c[m*threadID], &inc);
       }else{
@@ -63,6 +82,7 @@ void updateBF1(double *B, double *F, double *c, double *C, double *coords, int *
       }
     }
 
+  return status;
 }
 
 extern "C" {
@@ -250,7 +270,9 @@ extern "C" {
     }
 
     if(corName == "matern"){nu = theta[nuIndx];}
-    updateBF1(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb);
+    if(updateBF1(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb) != 0){
+      Rf_error("c++ Rf_error: latent covariance decomposition failed");
+    }
     
     for(i = 0; i < n; i++){
       kappa[i] = y[i] - static_cast<double>(nTrial[i])/2.0;
@@ -332,7 +354,7 @@ extern "C" {
       a = 0;
 
 #ifdef _OPENMP
-#pragma omp parallel for private (e, j, b) reduction(+:a, logDet)
+#pragma omp parallel for private (e, j, b) reduction(+:a)
 #endif
       for(i = 0; i < n; i++){
 	if(nnIndxLU[n+i] > 0){
@@ -354,7 +376,9 @@ extern "C" {
       ///////////////
       //current
       if(corName == "matern"){nu = theta[nuIndx];}
-      updateBF1(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb);
+      if(updateBF1(B, F, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], theta[phiIndx], nu, covModel, bk, nuUnifb) != 0){
+	Rf_error("c++ Rf_error: latent covariance decomposition failed");
+      }
       
       a = 0;
       logDet = 0;
@@ -389,32 +413,35 @@ extern "C" {
       	nuCand = logitInv(rnorm(logit(theta[nuIndx], nuUnifa, nuUnifb), tuning[nuIndx]), nuUnifa, nuUnifb);
       }
       
-      updateBF1(BCand, FCand, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], phiCand, nuCand, covModel, bk, nuUnifb);
-      
       a = 0;
       logDet = 0;
-      
+      int candStatus = updateBF1(BCand, FCand, c, C, coords, nnIndx, nnIndxLU, n, m, theta[sigmaSqIndx], phiCand, nuCand, covModel, bk, nuUnifb);
+
+      if(candStatus == 0){
 #ifdef _OPENMP
 #pragma omp parallel for private (e, j, b) reduction(+:a, logDet)
 #endif
-      for(i = 0; i < n; i++){
-	if(nnIndxLU[n+i] > 0){
-	  e = 0;
-	  for(j = 0; j < nnIndxLU[n+i]; j++){
-	    e += BCand[nnIndxLU[i]+j]*w[nnIndx[nnIndxLU[i]+j]];
+	for(i = 0; i < n; i++){
+	  if(nnIndxLU[n+i] > 0){
+	    e = 0;
+	    for(j = 0; j < nnIndxLU[n+i]; j++){
+	      e += BCand[nnIndxLU[i]+j]*w[nnIndx[nnIndxLU[i]+j]];
+	    }
+	    b = w[i] - e;
+	  }else{
+	    b = w[i];
 	  }
-	  b = w[i] - e;
-	}else{
-	  b = w[i];
-	  }	
 	  a += b*b/FCand[i];
 	  logDet += log(FCand[i]);
 	}
       
-      logPostCand = -0.5*logDet - 0.5*a;      
-      logPostCand += log(phiCand - phiUnifa) + log(phiUnifb - phiCand); 
-      if(corName == "matern"){
-      	logPostCand += log(nuCand - nuUnifa) + log(nuUnifb - nuCand); 
+	logPostCand = -0.5*logDet - 0.5*a;      
+	logPostCand += log(phiCand - phiUnifa) + log(phiUnifb - phiCand); 
+	if(corName == "matern"){
+	  logPostCand += log(nuCand - nuUnifa) + log(nuUnifb - nuCand); 
+	}
+      }else{
+	logPostCand = R_NegInf;
       }
 
       if(runif(0.0,1.0) <= exp(logPostCand - logPostCurrent)){
